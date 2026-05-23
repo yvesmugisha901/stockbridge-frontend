@@ -1,8 +1,10 @@
 "use client"
 import Link from "next/link"
+import { useState, useRef, useEffect } from "react"
 import { usePathname } from "next/navigation"
 import { useAuthContext } from "@/lib/context/AuthContext"
 import { ROLES } from "@/lib/utils/constants"
+import { NotificationDropdown } from "@/components/layout/NotificationDropdown"
 
 function DashboardIcon() {
   return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -43,49 +45,50 @@ function LogIcon() {
 function ConfigIcon() {
   return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
 }
+function BellIcon() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+}
 
 const NAV = {
   [ROLES.STAFF]: [
-    { label: "Dashboard",         href: "/staff",                icon: DashboardIcon   },
-    { label: "My Stock",          href: "/staff/stock",          icon: BoxIcon         },
-    { label: "Transfer Requests", href: "/staff/transfers",      icon: TruckIcon       },
-    { label: "New Transfer",      href: "/staff/transfers/new",  icon: PlusIcon        },
+    { label: "Dashboard",         href: "/staff",                 icon: DashboardIcon },
+    { label: "My Stock",          href: "/staff/stock",           icon: BoxIcon       },
+    { label: "Transfer Requests", href: "/staff/transfers",       icon: TruckIcon     },
+    { label: "New Transfer",      href: "/staff/transfers/new",   icon: PlusIcon      },
+    { label: "Notifications",     href: "/staff/notifications",   icon: BellIcon      },
   ],
   [ROLES.MANAGER]: [
-    { label: "Dashboard",         href: "/manager",              icon: DashboardIcon   },
-    { label: "Branch Stock",      href: "/manager/stock",        icon: BoxIcon         },
-    { label: "Pending Approvals", href: "/manager/approvals",    icon: CheckCircleIcon },
-    { label: "Reports",           href: "/manager/reports",      icon: ReportIcon      },
+    { label: "Dashboard",         href: "/manager",               icon: DashboardIcon   },
+    { label: "Branch Stock",      href: "/manager/stock",         icon: BoxIcon         },
+    { label: "Pending Approvals", href: "/manager/approvals",     icon: CheckCircleIcon },
+    { label: "Reports",           href: "/manager/reports",       icon: ReportIcon      },
+    { label: "Notifications",     href: "/manager/notifications", icon: BellIcon        },
   ],
   [ROLES.HO_ADMIN]: [
-    { label: "Dashboard",          href: "/ho-admin",            icon: DashboardIcon   },
-    { label: "All Stock",          href: "/ho-admin/stock",      icon: BoxIcon         },
-    { label: "Final Approvals",    href: "/ho-admin/approvals",  icon: CheckCircleIcon },
-    { label: "Inventory Catalogue",href: "/ho-admin/inventory",  icon: CatalogueIcon   },
-    { label: "Reports",            href: "/ho-admin/reports",    icon: ReportIcon      },
+    { label: "Dashboard",          href: "/ho-admin",                  icon: DashboardIcon   },
+    { label: "All Stock",          href: "/ho-admin/stock",            icon: BoxIcon         },
+    { label: "Final Approvals",    href: "/ho-admin/approvals",        icon: CheckCircleIcon },
+    { label: "Inventory Catalogue",href: "/ho-admin/inventory",        icon: CatalogueIcon   },
+    { label: "Reports",            href: "/ho-admin/reports",          icon: ReportIcon      },
+    { label: "Notifications",      href: "/ho-admin/notifications",    icon: BellIcon        },
   ],
   [ROLES.ACCOUNTANT]: [
-    { label: "Dashboard",          href: "/accountant",           icon: DashboardIcon  },
-    { label: "Approved Transfers", href: "/accountant/transfers", icon: TruckIcon      },
-    { label: "Finance Summary",    href: "/accountant/finance",   icon: DollarIcon     },
+    { label: "Dashboard",          href: "/accountant",                icon: DashboardIcon },
+    { label: "Approved Transfers", href: "/accountant/transfers",      icon: TruckIcon     },
+    { label: "Finance Summary",    href: "/accountant/finance",        icon: DollarIcon    },
+    { label: "Notifications",      href: "/accountant/notifications",  icon: BellIcon      },
   ],
   [ROLES.ADMIN]: [
-    // Overview
-    { label: "Dashboard",          href: "/admin",                icon: DashboardIcon, group: "Overview"        },
-    // People & Places
-    { label: "Users",              href: "/admin/users",          icon: UsersIcon,     group: "People & Places" },
-    { label: "Branches",           href: "/admin/branches",       icon: BranchIcon,    group: "People & Places" },
-    // Inventory
-    { label: "Item Catalogue",     href: "/admin/inventory",      icon: CatalogueIcon, group: "Inventory"       },
-    { label: "All Stock",          href: "/admin/stock",          icon: BoxIcon,       group: "Inventory"       },
-    // Transfers
-    { label: "All Transfers",      href: "/admin/transfers",      icon: TruckIcon,     group: "Transfers"       },
-    // Reports & Logs
-    { label: "Reports",            href: "/admin/reports",        icon: ReportIcon,    group: "Reports & Logs"  },
-    { label: "Audit Log",          href: "/admin/logs",           icon: LogIcon,       group: "Reports & Logs"  },
-    // System
-    { label: "System Config",      href: "/admin/config",         icon: ConfigIcon,    group: "System"          },
-    { label: "Roles & Permissions",href: "/admin/roles",          icon: ShieldIcon,    group: "System"          },
+    { label: "Dashboard",           href: "/admin",           icon: DashboardIcon, group: "Overview"        },
+    { label: "Users",               href: "/admin/users",     icon: UsersIcon,     group: "People & Places" },
+    { label: "Branches",            href: "/admin/branches",  icon: BranchIcon,    group: "People & Places" },
+    { label: "Item Catalogue",      href: "/admin/inventory", icon: CatalogueIcon, group: "Inventory"       },
+    { label: "All Stock",           href: "/admin/stock",     icon: BoxIcon,       group: "Inventory"       },
+    { label: "All Transfers",       href: "/admin/transfers", icon: TruckIcon,     group: "Transfers"       },
+    { label: "Reports",             href: "/admin/reports",   icon: ReportIcon,    group: "Reports & Logs"  },
+    { label: "Audit Log",           href: "/admin/logs",      icon: LogIcon,       group: "Reports & Logs"  },
+    { label: "System Config",       href: "/admin/config",    icon: ConfigIcon,    group: "System"          },
+    { label: "Roles & Permissions", href: "/admin/roles",     icon: ShieldIcon,    group: "System"          },
   ],
 }
 
@@ -97,14 +100,26 @@ const ROLE_LABEL = {
   [ROLES.ACCOUNTANT]: "Accountant",
 }
 
-export default function Sidebar() {
-  const { user } = useAuthContext()
+export default function Sidebar({ notifications = [] }) {
+  const { user }  = useAuthContext()
   const pathname  = usePathname()
   const links     = NAV[user?.role] || []
   const roleLabel = ROLE_LABEL[user?.role] || user?.role
   const isAdmin   = user?.role === ROLES.ADMIN
 
-  // For admin: render grouped nav; for others: flat list
+  const [bellOpen, setBellOpen] = useState(false)
+  const bellRef    = useRef(null)
+  const unreadCount = notifications.filter(n => !n.read).length
+
+  useEffect(() => {
+    if (!bellOpen) return
+    const handler = (e) => {
+      if (bellRef.current && !bellRef.current.contains(e.target)) setBellOpen(false)
+    }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [bellOpen])
+
   const renderLinks = (items) =>
     items.map(({ label, href, icon: NavIcon }) => {
       const active =
@@ -112,6 +127,8 @@ export default function Sidebar() {
         (href.length > 1 &&
           pathname.startsWith(href) &&
           href !== `/${user?.role?.toLowerCase()}`)
+      const isNotif = label === "Notifications"
+
       return (
         <Link
           key={href}
@@ -149,6 +166,20 @@ export default function Sidebar() {
             <NavIcon />
           </span>
           {label}
+          {isNotif && unreadCount > 0 && (
+            <span style={{
+              marginLeft: "auto",
+              background: "#e24b4a",
+              color: "#fff",
+              fontSize: 10,
+              fontWeight: 600,
+              padding: "1px 6px",
+              borderRadius: 10,
+              fontFamily: "'DM Mono', monospace",
+            }}>
+              {unreadCount}
+            </span>
+          )}
         </Link>
       )
     })
@@ -188,39 +219,95 @@ export default function Sidebar() {
       flexDirection: "column",
     }}>
 
-      {/* Logo */}
+      {/* Logo bar */}
       <div style={{
         height: 60,
         display: "flex",
         alignItems: "center",
-        gap: 10,
-        padding: "0 20px",
+        padding: "0 16px 0 20px",
         borderBottom: "1px solid #e8ebe3",
         flexShrink: 0,
+        justifyContent: "space-between",
       }}>
-        <span style={{
-          width: 30, height: 30,
-          background: "#3d7a2b",
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#fff",
-          fontSize: 10,
-          fontWeight: 600,
-          flexShrink: 0,
-          clipPath: "polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)",
-          fontFamily: "'DM Mono', monospace",
-        }}>
-          SB
-        </span>
-        <span style={{
-          fontFamily: "'DM Serif Display', Georgia, serif",
-          fontSize: 17,
-          color: "#1a1f0e",
-          letterSpacing: "-0.3px",
-        }}>
-          StockBridge
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{
+            width: 30, height: 30,
+            background: "#3d7a2b",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#fff",
+            fontSize: 10,
+            fontWeight: 600,
+            flexShrink: 0,
+            clipPath: "polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)",
+            fontFamily: "'DM Mono', monospace",
+          }}>
+            SB
+          </span>
+          <span style={{
+            fontFamily: "'DM Serif Display', Georgia, serif",
+            fontSize: 17,
+            color: "#1a1f0e",
+            letterSpacing: "-0.3px",
+          }}>
+            StockBridge
+          </span>
+        </div>
+
+        {/* Bell — admin only, sits in the logo bar */}
+        {isAdmin && (
+          <div ref={bellRef} style={{ position: "relative" }}>
+            <button
+              onClick={() => setBellOpen(o => !o)}
+              aria-label="Notifications"
+              style={{
+                position: "relative",
+                background: bellOpen ? "#f0f7ed" : "none",
+                border: "none",
+                cursor: "pointer",
+                padding: 6,
+                borderRadius: 6,
+                color: bellOpen ? "#3d7a2b" : "#9ca3af",
+                display: "flex",
+                alignItems: "center",
+                transition: "color 0.13s, background 0.13s",
+              }}
+              onMouseEnter={e => {
+                if (!bellOpen) {
+                  e.currentTarget.style.background = "#f7f8f4"
+                  e.currentTarget.style.color = "#1a1f0e"
+                }
+              }}
+              onMouseLeave={e => {
+                if (!bellOpen) {
+                  e.currentTarget.style.background = "none"
+                  e.currentTarget.style.color = "#9ca3af"
+                }
+              }}
+            >
+              <BellIcon />
+              {unreadCount > 0 && (
+                <span style={{
+                  position: "absolute",
+                  top: 2, right: 2,
+                  width: 8, height: 8,
+                  background: "#e24b4a",
+                  borderRadius: "50%",
+                  border: "2px solid #fff",
+                }} />
+              )}
+            </button>
+
+            {bellOpen && (
+              <NotificationDropdown
+                notifications={notifications}
+                onMarkAllRead={() => { /* wire to your state/API */ }}
+                onClose={() => setBellOpen(false)}
+              />
+            )}
+          </div>
+        )}
       </div>
 
       {/* Nav */}
