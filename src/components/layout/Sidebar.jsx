@@ -72,12 +72,13 @@ const NAV = {
     { label: "Reports",            href: "/ho-admin/reports",          icon: ReportIcon      },
     { label: "Notifications",      href: "/ho-admin/notifications",    icon: BellIcon        },
   ],
-  [ROLES.ACCOUNTANT]: [
-    { label: "Dashboard",          href: "/accountant",                icon: DashboardIcon },
-    { label: "Approved Transfers", href: "/accountant/transfers",      icon: TruckIcon     },
-    { label: "Finance Summary",    href: "/accountant/finance",        icon: DollarIcon    },
-    { label: "Notifications",      href: "/accountant/notifications",  icon: BellIcon      },
-  ],
+[ROLES.ACCOUNTANT]: [
+  { label: "Dashboard",          href: "/accountant",                icon: DashboardIcon },
+  { label: "Approved Transfers", href: "/accountant/transfers",      icon: TruckIcon     },
+  { label: "Finance Summary",    href: "/accountant/finance",        icon: DollarIcon    },
+  { label: "Reports",            href: "/accountant/reports",        icon: ReportIcon    },
+  { label: "Notifications",      href: "/accountant/notifications",  icon: BellIcon      },
+],
   [ROLES.ADMIN]: [
     { label: "Dashboard",           href: "/admin",           icon: DashboardIcon, group: "Overview"        },
     { label: "Users",               href: "/admin/users",     icon: UsersIcon,     group: "People & Places" },
