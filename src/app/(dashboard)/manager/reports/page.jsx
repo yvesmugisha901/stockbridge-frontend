@@ -52,16 +52,17 @@ export default function ManagerReportsPage() {
   const [hasRun, setHasRun]       = useState(false)
 
   // ─── Filters ───────────────────────────────────────────────────────────────
-  const [statusFilter, setStatus]   = useState("ALL")
-  const [itemFilter, setItem]       = useState("")
-  const [dateFrom, setDateFrom]     = useState("")
-  const [dateTo, setDateTo]         = useState("")
-  const [search, setSearch]         = useState("")
+  const [statusFilter, setStatus] = useState("ALL")
+  const [itemFilter, setItem]     = useState("")
+  const [dateFrom, setDateFrom]   = useState("")
+  const [dateTo, setDateTo]       = useState("")
+  const [search, setSearch]       = useState("")
 
   // Load item list for filter dropdown — FR-29
+  // GET /api/v1/items → Page<ItemResponse> → .data.content ✓ (confirmed from ItemController)
   useEffect(() => {
     api.get("/items?size=200").then(res => {
-      if (res?.success) setItems(res.data.content || [])
+      if (res?.success) setItems(res.data?.content ?? [])
     }).catch(() => {})
   }, [])
 
@@ -71,15 +72,19 @@ export default function ManagerReportsPage() {
       setLoading(true)
       setHasRun(true)
 
-      const params = new URLSearchParams({ size: 200 })
+      // GET /api/v1/transfers → Page<TransferResponse> → .data.content
+      const params = new URLSearchParams({ size: "200", page: "0" })
       if (statusFilter !== "ALL") params.append("status", statusFilter)
       if (itemFilter)             params.append("itemId", itemFilter)
       if (dateFrom)               params.append("fromDate", dateFrom)
       if (dateTo)                 params.append("toDate", dateTo)
 
       const res = await api.get(`/transfers?${params.toString()}`)
-      if (res?.success) setTransfers(res.data.content || [])
-      else toast.error("Failed to generate report")
+      if (res?.success) {
+        setTransfers(res.data?.content ?? [])
+      } else {
+        toast.error(res?.message || "Failed to generate report")
+      }
     } catch (err) {
       toast.error(err.message || "Report generation failed")
     } finally {
@@ -140,7 +145,7 @@ export default function ManagerReportsPage() {
 
   // ─── Totals summary ───────────────────────────────────────────────────────
   const totalQty   = filtered.reduce((sum, t) => sum + (t.quantity ?? 0), 0)
-  const totalValue = filtered.reduce((sum, t) => sum + (Number(t.totalValue) ?? 0), 0)
+  const totalValue = filtered.reduce((sum, t) => sum + (Number(t.totalValue) || 0), 0)
 
   const labelStyle = {
     fontFamily: "'DM Mono', monospace", fontSize: 9,
@@ -170,7 +175,6 @@ export default function ManagerReportsPage() {
         background: "#fff", border: "1px solid #dde0d4", padding: "20px 24px",
         display: "flex", flexDirection: "column", gap: 16,
       }}>
-
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ color: "#6b7260" }}><IconFilter /></span>
           <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: "#9ca3af" }}>
@@ -192,11 +196,12 @@ export default function ManagerReportsPage() {
             </select>
           </div>
 
-          {/* Item */}
+          {/* Item — FR-29 */}
           <div>
             <span style={labelStyle}>Item</span>
             <select value={itemFilter} onChange={e => setItem(e.target.value)} style={inputStyle}>
               <option value="">All Items</option>
+              {/* items from GET /api/v1/items (Page) — item.name and item.code confirmed from ItemResponse */}
               {items.map(item => (
                 <option key={item.id} value={item.id}>
                   {item.name}{item.code ? ` (${item.code})` : ""}
@@ -316,13 +321,7 @@ export default function ManagerReportsPage() {
           {/* Table */}
           <div style={{ background: "#fff", border: "1px solid #dde0d4", overflow: "hidden" }}>
             {loading ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 0" }}>
-                <div style={{ width: 24, height: 24, border: "2px solid #dde0d4", borderTopColor: "#3d7a2b", borderRadius: "50%", animation: "sb-spin 0.7s linear infinite" }} />
-                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                  Generating report...
-                </span>
-                <style>{`@keyframes sb-spin { to { transform: rotate(360deg) } }`}</style>
-              </div>
+              <LoadingSpinner label="Generating report..." />
             ) : filtered.length === 0 ? (
               <div style={{ textAlign: "center", padding: "48px 0", fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9ca3af" }}>
                 {search ? "No results match your search." : "No transfers found for the selected filters."}
@@ -344,7 +343,6 @@ export default function ManagerReportsPage() {
                 <tbody>
                   {filtered.map((t, idx) => (
                     <tr key={t.id} style={{ borderBottom: idx < filtered.length - 1 ? "1px solid #f0f1ec" : "none" }}>
-
                       <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>
                         {t.referenceNumber ?? `#${t.id}`}
                       </td>
@@ -380,7 +378,6 @@ export default function ManagerReportsPage() {
                       <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af" }}>
                         {t.requestedAt ? new Date(t.requestedAt).toLocaleDateString() : "—"}
                       </td>
-
                     </tr>
                   ))}
                 </tbody>
@@ -401,6 +398,19 @@ export default function ManagerReportsPage() {
         </div>
       )}
 
+    </div>
+  )
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function LoadingSpinner({ label }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 0" }}>
+      <div style={{ width: 24, height: 24, border: "2px solid #dde0d4", borderTopColor: "#3d7a2b", borderRadius: "50%", animation: "sb-spin 0.7s linear infinite" }} />
+      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+        {label}
+      </span>
+      <style>{`@keyframes sb-spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )
 }

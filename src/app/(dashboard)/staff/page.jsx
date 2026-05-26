@@ -1,6 +1,10 @@
 "use client"
+import { useState, useEffect } from "react"
 import { useAuthContext } from "@/lib/context/AuthContext"
 import PageHeader from "@/components/ui/PageHeader"
+import Link from "next/link"
+import { api } from "@/lib/api/client"
+import toast from "react-hot-toast"
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 const IconPackage = () => (
@@ -32,21 +36,7 @@ const IconTransfer = () => (
   </svg>
 )
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const mockStats = { totalItems: 142, lowStockAlerts: 5, pendingTransfers: 3 }
-
-const mockLowStock = [
-  { id: 1, name: "A4 Paper Ream",      quantity: 4, threshold: 10, unit: "Ream" },
-  { id: 2, name: "Printer Ink – Black", quantity: 1, threshold: 5,  unit: "Cartridge" },
-  { id: 3, name: "Staples Box",         quantity: 2, threshold: 5,  unit: "Box" },
-]
-
-const mockTransfers = [
-  { id: "TRF-001", item: "A4 Paper Ream",      qty: 20, destination: "Branch B",   status: "PENDING",          date: "2026-05-20" },
-  { id: "TRF-002", item: "Ballpoint Pens",      qty: 50, destination: "Head Office", status: "MANAGER_APPROVED", date: "2026-05-19" },
-  { id: "TRF-003", item: "Printer Ink – Black", qty: 10, destination: "Branch C",   status: "COMPLETED",        date: "2026-05-17" },
-]
-
+// ─── Status badges ─────────────────────────────────────────────────────────────
 const STATUS_STYLE = {
   PENDING:          { background: "#fef9c3", color: "#a16207" },
   MANAGER_APPROVED: { background: "#dbeafe", color: "#1d4ed8" },
@@ -56,7 +46,6 @@ const STATUS_STYLE = {
   REJECTED:         { background: "#fee2e2", color: "#dc2626" },
   CANCELLED:        { background: "#f3f4f6", color: "#6b7280" },
 }
-
 const STATUS_LABEL = {
   PENDING: "Pending", MANAGER_APPROVED: "Manager Approved",
   HO_APPROVED: "HO Approved", IN_TRANSIT: "In Transit",
@@ -65,6 +54,61 @@ const STATUS_LABEL = {
 
 export default function StaffDashboard() {
   const { user } = useAuthContext()
+
+  const [stock, setStock]         = useState([])
+  const [transfers, setTransfers] = useState([])
+  const [loading, setLoading]     = useState(true)
+
+  useEffect(() => {
+    async function fetchDashboard() {
+      try {
+        setLoading(true)
+        // Both requests in parallel
+        const [stockRes, transferRes] = await Promise.all([
+          api.get("/stock?size=200"),
+          api.get("/transfers/my?size=5"),
+        ])
+        if (stockRes?.success)    setStock(stockRes.data.content || [])
+        if (transferRes?.success) setTransfers(transferRes.data.content || [])
+      } catch (err) {
+        toast.error(err.message || "Failed to load dashboard")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchDashboard()
+  }, [])
+
+  // ── Derived stats ────────────────────────────────────────────────────────────
+  const totalItems      = stock.length
+  const lowStockItems   = stock.filter(s => s.isLowStock || s.quantityOnHand <= s.minimumThreshold)
+  const lowStockCount   = lowStockItems.length
+  const pendingCount    = transfers.filter(t => t.status === "PENDING").length
+  // Show only the 3 most recent for the dashboard table
+  const recentTransfers = transfers.slice(0, 5)
+
+  // ── Loading skeleton ─────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        <PageHeader
+          title={`Welcome, ${user?.name || "Branch Staff"}`}
+          subtitle="Here is your branch stock overview."
+        />
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "64px 0" }}>
+          <div style={{
+            width: 24, height: 24,
+            border: "2px solid #dde0d4", borderTopColor: "#3d7a2b",
+            borderRadius: "50%", animation: "sb-spin 0.7s linear infinite",
+          }} />
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+            Loading dashboard...
+          </span>
+          <style>{`@keyframes sb-spin { to { transform: rotate(360deg) } }`}</style>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -76,16 +120,22 @@ export default function StaffDashboard() {
 
       {/* ── Stat Cards ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
-        <StatCard icon={<IconPackage />} iconBg="#f0f7ed" iconColor="#3d7a2b"
-          label="Total Items" value={mockStats.totalItems} valueColor="#1a1f0e" />
-        <StatCard icon={<IconAlert />}   iconBg="#fef2f2" iconColor="#dc2626"
-          label="Low Stock Alerts" value={mockStats.lowStockAlerts} valueColor="#dc2626" />
-        <StatCard icon={<IconClock />}   iconBg="#fefce8" iconColor="#ca8a04"
-          label="My Pending Transfers" value={mockStats.pendingTransfers} valueColor="#ca8a04" />
+        <StatCard
+          icon={<IconPackage />} iconBg="#f0f7ed" iconColor="#3d7a2b"
+          label="Total Items" value={totalItems} valueColor="#1a1f0e"
+        />
+        <StatCard
+          icon={<IconAlert />} iconBg="#fef2f2" iconColor="#dc2626"
+          label="Low Stock Alerts" value={lowStockCount} valueColor="#dc2626"
+        />
+        <StatCard
+          icon={<IconClock />} iconBg="#fefce8" iconColor="#ca8a04"
+          label="My Pending Transfers" value={pendingCount} valueColor="#ca8a04"
+        />
       </div>
 
-      {/* ── Low Stock Items ── */}
-      {mockLowStock.length > 0 && (
+      {/* ── Low Stock Banner ── */}
+      {lowStockItems.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ color: "#dc2626" }}><IconAlert /></span>
@@ -94,26 +144,34 @@ export default function StaffDashboard() {
             </span>
           </div>
           <div style={{ background: "#fff", border: "1px solid #dde0d4" }}>
-            {mockLowStock.map((item, idx) => (
+            {lowStockItems.slice(0, 5).map((item, idx) => (
               <div key={item.id} style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 padding: "12px 20px",
-                borderBottom: idx < mockLowStock.length - 1 ? "1px solid #f0f1ec" : "none",
+                borderBottom: idx < Math.min(lowStockItems.length, 5) - 1 ? "1px solid #f0f1ec" : "none",
               }}>
                 <div>
                   <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 500, color: "#1a1f0e" }}>
-                    {item.name}
+                    {item.itemName}
                   </p>
                   <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
-                    Min threshold: {item.threshold} {item.unit}
+                    Min threshold: {item.minimumThreshold}
                   </p>
                 </div>
                 <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 700, color: "#dc2626" }}>
-                  {item.quantity} left
+                  {item.quantityOnHand} left
                 </span>
               </div>
             ))}
           </div>
+          {lowStockItems.length > 5 && (
+            <Link href="/dashboard/staff/stock" style={{
+              fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#dc2626",
+              textDecoration: "none", fontWeight: 500, alignSelf: "flex-start",
+            }}>
+              +{lowStockItems.length - 5} more low stock items →
+            </Link>
+          )}
         </div>
       )}
 
@@ -126,50 +184,68 @@ export default function StaffDashboard() {
               My Recent Transfers
             </span>
           </div>
-          <a href="/dashboard/staff/transfers" style={{
+          <Link href="/dashboard/staff/transfers" style={{
             fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#3d7a2b",
             textDecoration: "none", fontWeight: 500,
           }}>
             View all →
-          </a>
+          </Link>
         </div>
 
         <div style={{ background: "#fff", border: "1px solid #dde0d4", overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: "#f7f8f4", borderBottom: "1px solid #e8ebe3" }}>
-                {["Request ID", "Item", "Qty", "Destination", "Status", "Date"].map(h => (
-                  <th key={h} style={{
-                    textAlign: "left", padding: "10px 20px",
-                    fontFamily: "'DM Mono', monospace", fontSize: 10,
-                    textTransform: "uppercase", letterSpacing: "0.1em", color: "#9ca3af",
-                    fontWeight: 500,
-                  }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {mockTransfers.map((t, idx) => (
-                <tr key={t.id} style={{ borderBottom: idx < mockTransfers.length - 1 ? "1px solid #f0f1ec" : "none" }}>
-                  <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>{t.id}</td>
-                  <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>{t.item}</td>
-                  <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>{t.qty}</td>
-                  <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>{t.destination}</td>
-                  <td style={{ padding: "12px 20px" }}>
-                    <span style={{
-                      ...STATUS_STYLE[t.status],
+          {recentTransfers.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "48px 0", fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9ca3af" }}>
+              No transfer requests yet.
+            </div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: "#f7f8f4", borderBottom: "1px solid #e8ebe3" }}>
+                  {["Request ID", "Item", "Qty", "Destination", "Status", "Date"].map(h => (
+                    <th key={h} style={{
+                      textAlign: "left", padding: "10px 20px",
                       fontFamily: "'DM Mono', monospace", fontSize: 10,
-                      fontWeight: 600, padding: "2px 8px",
-                      borderRadius: 999, display: "inline-block",
-                    }}>
-                      {STATUS_LABEL[t.status]}
-                    </span>
-                  </td>
-                  <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af" }}>{t.date}</td>
+                      textTransform: "uppercase", letterSpacing: "0.1em", color: "#9ca3af",
+                      fontWeight: 500,
+                    }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {recentTransfers.map((t, idx) => (
+                  <tr key={t.id} style={{ borderBottom: idx < recentTransfers.length - 1 ? "1px solid #f0f1ec" : "none" }}>
+                    {/* Use id since no referenceNumber field in TransferResponse */}
+                    <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>
+                      #{t.id}
+                    </td>
+                    <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>
+                      {t.itemName}
+                    </td>
+                    <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>
+                      {t.quantity}
+                    </td>
+                    <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>
+                      {t.destinationBranchName}
+                    </td>
+                    <td style={{ padding: "12px 20px" }}>
+                      <span style={{
+                        ...(STATUS_STYLE[t.status] ?? { background: "#f3f4f6", color: "#6b7280" }),
+                        fontFamily: "'DM Mono', monospace", fontSize: 10,
+                        fontWeight: 600, padding: "2px 8px",
+                        borderRadius: 999, display: "inline-block",
+                      }}>
+                        {STATUS_LABEL[t.status] ?? t.status}
+                      </span>
+                    </td>
+                    {/* requestedAt is the correct field from TransferResponse */}
+                    <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af" }}>
+                      {t.requestedAt ? new Date(t.requestedAt).toLocaleDateString() : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 

@@ -4,7 +4,6 @@ import Link from "next/link"
 import { api } from "@/lib/api/client"
 import toast from "react-hot-toast"
 import PageHeader from "@/components/ui/PageHeader"
-import { STATUS_COLORS, STATUS_LABELS } from "@/lib/utils/constants"
 
 const ALL_STATUSES = ["ALL","PENDING","MANAGER_APPROVED","HO_APPROVED","IN_TRANSIT","COMPLETED","REJECTED","CANCELLED"]
 
@@ -25,18 +24,19 @@ const STATUS_LABEL = {
 }
 
 export default function StaffTransfersPage() {
-  const [transfers, setTransfers]     = useState([])
-  const [loading, setLoading]         = useState(true)
-  const [statusFilter, setStatus]     = useState("ALL")
-  const [dateFrom, setDateFrom]       = useState("")
-  const [dateTo, setDateTo]           = useState("")
-  const [cancelling, setCancelling]   = useState(null)
+  const [transfers, setTransfers]   = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [statusFilter, setStatus]   = useState("ALL")
+  const [dateFrom, setDateFrom]     = useState("")
+  const [dateTo, setDateTo]         = useState("")
+  const [cancelling, setCancelling] = useState(null)
 
   useEffect(() => { fetchTransfers() }, [])
 
   async function fetchTransfers() {
     try {
       setLoading(true)
+      // GET /api/v1/transfers/my — returns ApiResponse<Page<TransferResponse>>
       const res = await api.get("/transfers/my?size=100")
       if (res?.success) setTransfers(res.data.content || [])
       else toast.error("Failed to load transfers")
@@ -51,11 +51,16 @@ export default function StaffTransfersPage() {
     if (!confirm("Cancel this transfer request?")) return
     try {
       setCancelling(id)
+      // PATCH /api/v1/transfers/{id}/cancel — returns ApiResponse<TransferResponse>
       const res = await api.patch(`/transfers/${id}/cancel`)
       if (res?.success) {
         toast.success("Transfer cancelled")
-        setTransfers(prev => prev.map(t => t.id === id ? { ...t, status: "CANCELLED" } : t))
-      } else toast.error("Could not cancel")
+        setTransfers(prev => prev.map(t =>
+          t.id === id ? { ...t, status: "CANCELLED" } : t
+        ))
+      } else {
+        toast.error("Could not cancel transfer")
+      }
     } catch (err) {
       toast.error(err.message || "Cancel failed")
     } finally {
@@ -63,10 +68,12 @@ export default function StaffTransfersPage() {
     }
   }
 
+  // Client-side filtering — status filter hits the already-fetched page
   const filtered = transfers.filter(t => {
     const matchStatus = statusFilter === "ALL" || t.status === statusFilter
-    const matchFrom   = !dateFrom || new Date(t.createdAt) >= new Date(dateFrom)
-    const matchTo     = !dateTo   || new Date(t.createdAt) <= new Date(dateTo + "T23:59:59")
+    // TransferResponse uses requestedAt (not createdAt)
+    const matchFrom   = !dateFrom || new Date(t.requestedAt) >= new Date(dateFrom)
+    const matchTo     = !dateTo   || new Date(t.requestedAt) <= new Date(dateTo + "T23:59:59")
     return matchStatus && matchFrom && matchTo
   })
 
@@ -129,8 +136,10 @@ export default function StaffTransfersPage() {
         </div>
 
         {hasFilters && (
-          <button onClick={() => { setStatus("ALL"); setDateFrom(""); setDateTo("") }}
-            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#9ca3af", textDecoration: "underline", padding: 0 }}>
+          <button
+            onClick={() => { setStatus("ALL"); setDateFrom(""); setDateTo("") }}
+            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#9ca3af", textDecoration: "underline", padding: 0 }}
+          >
             Clear filters
           </button>
         )}
@@ -145,7 +154,9 @@ export default function StaffTransfersPage() {
         {loading ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 0" }}>
             <div style={{ width: 24, height: 24, border: "2px solid #dde0d4", borderTopColor: "#3d7a2b", borderRadius: "50%", animation: "sb-spin 0.7s linear infinite" }} />
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260", textTransform: "uppercase", letterSpacing: "0.1em" }}>Loading transfers...</span>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+              Loading transfers...
+            </span>
             <style>{`@keyframes sb-spin { to { transform: rotate(360deg) } }`}</style>
           </div>
         ) : (
@@ -171,11 +182,22 @@ export default function StaffTransfersPage() {
                 </tr>
               ) : filtered.map((t, idx) => (
                 <tr key={t.id} style={{ borderBottom: idx < filtered.length - 1 ? "1px solid #f0f1ec" : "none" }}>
-                  <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>{t.referenceNumber ?? `#${t.id}`}</td>
-                  <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>{t.itemName}</td>
-                  <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>{t.sourceBranchName}</td>
-                  <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>{t.destinationBranchName}</td>
-                  <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>{t.quantity}</td>
+                  {/* TransferResponse has no referenceNumber — use id */}
+                  <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>
+                    #{t.id}
+                  </td>
+                  <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>
+                    {t.itemName}
+                  </td>
+                  <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>
+                    {t.sourceBranchName}
+                  </td>
+                  <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>
+                    {t.destinationBranchName}
+                  </td>
+                  <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>
+                    {t.quantity}
+                  </td>
                   <td style={{ padding: "12px 20px" }}>
                     <span style={{
                       ...(STATUS_STYLE[t.status] ?? { background: "#f3f4f6", color: "#6b7280" }),
@@ -185,13 +207,22 @@ export default function StaffTransfersPage() {
                       {STATUS_LABEL[t.status] ?? t.status}
                     </span>
                   </td>
+                  {/* requestedAt is the correct field — TransferResponse has no createdAt */}
                   <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af" }}>
-                    {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : "—"}
+                    {t.requestedAt ? new Date(t.requestedAt).toLocaleDateString() : "—"}
                   </td>
                   <td style={{ padding: "12px 20px" }}>
                     {t.status === "PENDING" ? (
-                      <button onClick={() => handleCancel(t.id)} disabled={cancelling === t.id}
-                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#dc2626", fontFamily: "'Inter', sans-serif", fontWeight: 500, opacity: cancelling === t.id ? 0.4 : 1 }}>
+                      <button
+                        onClick={() => handleCancel(t.id)}
+                        disabled={cancelling === t.id}
+                        style={{
+                          background: "none", border: "none", cursor: "pointer",
+                          fontSize: 12, color: "#dc2626",
+                          fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                          opacity: cancelling === t.id ? 0.4 : 1,
+                        }}
+                      >
                         {cancelling === t.id ? "Cancelling..." : "Cancel"}
                       </button>
                     ) : (

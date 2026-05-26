@@ -30,12 +30,16 @@ export default function ManagerApprovalsPage() {
 
   useEffect(() => { fetchPending() }, [])
 
+  // GET /api/v1/approvals/pending/manager → Page<TransferResponse>
   async function fetchPending() {
     try {
       setLoading(true)
-      const res = await api.get("/approvals/pending?size=100")
-      if (res?.success) setTransfers(res.data.content || [])
-      else toast.error("Failed to load pending approvals")
+      const res = await api.get("/approvals/pending/manager?size=100&page=0")
+      if (res?.success) {
+        setTransfers(res.data?.content ?? [])
+      } else {
+        toast.error(res?.message || "Failed to load pending approvals")
+      }
     } catch (err) {
       toast.error(err.message || "Failed to fetch approvals")
     } finally {
@@ -49,16 +53,19 @@ export default function ManagerApprovalsPage() {
   }
 
   function closeModal() {
+    if (submitting) return
     setModal(null)
     setComments("")
   }
 
-  // FR-16: approve with optional comments
+  // FR-16: POST /api/v1/approvals/{transferId}/manager-approve
+  // Body: { approved: true, comments?: string }
   async function handleApprove() {
     if (!modal) return
     try {
       setSubmitting(true)
-      const res = await api.patch(`/approvals/${modal.transfer.id}/approve`, {
+      const res = await api.post(`/approvals/${modal.transfer.id}/manager-approve`, {
+        approved: true,
         comments: comments.trim() || null,
       })
       if (res?.success) {
@@ -75,7 +82,8 @@ export default function ManagerApprovalsPage() {
     }
   }
 
-  // FR-16: reject with MANDATORY comments
+  // FR-16 / FR-20: POST /api/v1/approvals/{transferId}/manager-reject
+  // Body: { approved: false, comments: string } — comments MANDATORY per FR-16
   async function handleReject() {
     if (!modal) return
     if (!comments.trim()) {
@@ -84,7 +92,8 @@ export default function ManagerApprovalsPage() {
     }
     try {
       setSubmitting(true)
-      const res = await api.patch(`/approvals/${modal.transfer.id}/reject`, {
+      const res = await api.post(`/approvals/${modal.transfer.id}/manager-reject`, {
+        approved: false,
         comments: comments.trim(),
       })
       if (res?.success) {
@@ -118,18 +127,12 @@ export default function ManagerApprovalsPage() {
       {/* ── Table ── */}
       <div style={{ background: "#fff", border: "1px solid #dde0d4", overflow: "hidden" }}>
         {loading ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 0" }}>
-            <div style={{ width: 24, height: 24, border: "2px solid #dde0d4", borderTopColor: "#3d7a2b", borderRadius: "50%", animation: "sb-spin 0.7s linear infinite" }} />
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-              Loading approvals...
-            </span>
-            <style>{`@keyframes sb-spin { to { transform: rotate(360deg) } }`}</style>
-          </div>
+          <LoadingSpinner label="Loading approvals..." />
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "#f7f8f4", borderBottom: "1px solid #e8ebe3" }}>
-                {["Request ID", "Item", "From", "To", "Qty", "Value", "Requested By", "Date", "Action"].map(h => (
+                {["Request ID", "Item", "From", "To", "Qty", "Value", "Justification", "Requested By", "Date", "Action"].map(h => (
                   <th key={h} style={{
                     textAlign: "left", padding: "10px 20px",
                     fontFamily: "'DM Mono', monospace", fontSize: 10,
@@ -142,56 +145,47 @@ export default function ManagerApprovalsPage() {
             <tbody>
               {transfers.length === 0 ? (
                 <tr>
-                  <td colSpan={9} style={{ padding: "48px 0", textAlign: "center", fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9ca3af" }}>
+                  <td colSpan={10} style={{ padding: "48px 0", textAlign: "center", fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9ca3af" }}>
                     No pending approvals for your branch.
                   </td>
                 </tr>
               ) : transfers.map((t, idx) => (
                 <tr key={t.id} style={{ borderBottom: idx < transfers.length - 1 ? "1px solid #f0f1ec" : "none" }}>
 
-                  {/* ID */}
                   <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>
                     {t.referenceNumber ?? `#${t.id}`}
                   </td>
-
-                  {/* Item */}
                   <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>
                     {t.itemName}
                   </td>
-
-                  {/* From */}
                   <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>
                     {t.sourceBranchName}
                   </td>
-
-                  {/* To */}
                   <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>
                     {t.destinationBranchName}
                   </td>
-
-                  {/* Qty */}
                   <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>
                     {t.quantity}
                   </td>
-
-                  {/* Value */}
                   <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#6b7260" }}>
                     {t.totalValue != null
                       ? new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(t.totalValue)
                       : "—"}
                   </td>
-
-                  {/* Requested By */}
+                  <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260", maxWidth: 180 }}>
+                    <span style={{
+                      display: "-webkit-box", WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical", overflow: "hidden",
+                    }}>
+                      {t.justification ?? "—"}
+                    </span>
+                  </td>
                   <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>
                     {t.requestedByEmail ?? "—"}
                   </td>
-
-                  {/* Date */}
                   <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af" }}>
                     {t.requestedAt ? new Date(t.requestedAt).toLocaleDateString() : "—"}
                   </td>
-
-                  {/* Actions */}
                   <td style={{ padding: "12px 20px" }}>
                     <div style={{ display: "flex", gap: 8 }}>
                       <button
@@ -255,14 +249,14 @@ export default function ManagerApprovalsPage() {
             {/* Transfer summary */}
             <div style={{ background: "#f7f8f4", border: "1px solid #e8ebe3", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
               {[
-                ["Request ID",   modal.transfer.referenceNumber ?? `#${modal.transfer.id}`],
-                ["Item",         modal.transfer.itemName],
-                ["Quantity",     modal.transfer.quantity],
-                ["From → To",    `${modal.transfer.sourceBranchName} → ${modal.transfer.destinationBranchName}`],
+                ["Request ID",    modal.transfer.referenceNumber ?? `#${modal.transfer.id}`],
+                ["Item",          modal.transfer.itemName],
+                ["Quantity",      modal.transfer.quantity],
+                ["From → To",     `${modal.transfer.sourceBranchName} → ${modal.transfer.destinationBranchName}`],
                 ["Justification", modal.transfer.justification ?? "—"],
               ].map(([label, value]) => (
                 <div key={label} style={{ display: "flex", gap: 12 }}>
-                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em", minWidth: 100 }}>
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em", minWidth: 110, flexShrink: 0 }}>
                     {label}
                   </span>
                   <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#1a1f0e" }}>
@@ -292,11 +286,11 @@ export default function ManagerApprovalsPage() {
                   color: "#1a1f0e", outline: "none", resize: "vertical",
                   boxSizing: "border-box",
                   ...(modal.type === "reject" && !comments.trim()
-                    ? { border: "1px solid #fca5a5" } : {}),
+                    ? { borderColor: "#fca5a5" } : {}),
                 }}
               />
               {modal.type === "reject" && !comments.trim() && (
-                <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#dc2626", marginTop: 4 }}>
+                <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#dc2626", marginTop: 4, marginBottom: 0 }}>
                   A rejection reason is required per FR-16.
                 </p>
               )}
@@ -313,7 +307,6 @@ export default function ManagerApprovalsPage() {
                     color: "#fff", border: "none", cursor: submitting ? "wait" : "pointer",
                     padding: "10px 24px", fontSize: 13,
                     fontFamily: "'Inter', sans-serif", fontWeight: 500,
-                    opacity: submitting ? 0.7 : 1,
                   }}
                 >
                   {submitting ? "Approving..." : "Confirm Approval"}
@@ -337,7 +330,7 @@ export default function ManagerApprovalsPage() {
                 onClick={closeModal}
                 disabled={submitting}
                 style={{
-                  background: "#fff", border: "1px solid #dde0d4", cursor: "pointer",
+                  background: "#fff", border: "1px solid #dde0d4", cursor: submitting ? "not-allowed" : "pointer",
                   padding: "10px 20px", fontSize: 13,
                   fontFamily: "'Inter', sans-serif", color: "#6b7260",
                 }}
@@ -350,6 +343,23 @@ export default function ManagerApprovalsPage() {
         </div>
       )}
 
+    </div>
+  )
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function LoadingSpinner({ label }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 0" }}>
+      <div style={{
+        width: 24, height: 24,
+        border: "2px solid #dde0d4", borderTopColor: "#3d7a2b",
+        borderRadius: "50%", animation: "sb-spin 0.7s linear infinite",
+      }} />
+      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+        {label}
+      </span>
+      <style>{`@keyframes sb-spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )
 }

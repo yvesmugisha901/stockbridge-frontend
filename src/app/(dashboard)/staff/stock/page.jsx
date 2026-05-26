@@ -20,16 +20,18 @@ const IconSearch = () => (
 )
 
 export default function MyStockPage() {
-  const [stock, setStock] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [stock, setStock]                       = useState([])
+  const [loading, setLoading]                   = useState(true)
   const [showOnlyViolations, setShowOnlyViolations] = useState(false)
-  const [search, setSearch] = useState("")
+  const [search, setSearch]                     = useState("")
 
   useEffect(() => { fetchStock() }, [])
 
   async function fetchStock() {
     try {
       setLoading(true)
+      // GET /api/v1/stock — role-filtered server-side (STAFF/MANAGER see own branch only)
+      // Returns ApiResponse<Page<StockLevelResponse>>
       const res = await api.get("/stock?size=200")
       if (res?.success) {
         setStock(res.data.content || [])
@@ -43,16 +45,20 @@ export default function MyStockPage() {
     }
   }
 
-  const lowStockCount = stock.filter(s => s.quantityOnHand <= s.minimumThreshold).length
+  // Use backend's isLowStock flag (preferred) with client-side fallback
+  const isItemLow = (s) => s.isLowStock || s.quantityOnHand <= s.minimumThreshold
+
+  const lowStockCount = stock.filter(isItemLow).length
 
   const filteredStock = stock.filter(entry => {
     const matchesSearch =
       entry.itemName?.toLowerCase().includes(search.toLowerCase()) ||
       entry.itemCode?.toLowerCase().includes(search.toLowerCase())
-    const matchesFilter = !showOnlyViolations || entry.quantityOnHand <= entry.minimumThreshold
+    const matchesFilter = !showOnlyViolations || isItemLow(entry)
     return matchesSearch && matchesFilter
   })
 
+  // branchName comes from StockLevelResponse
   const branchName = stock.length > 0 ? stock[0].branchName : "My Branch"
 
   return (
@@ -63,7 +69,7 @@ export default function MyStockPage() {
         subtitle="Live stock levels, reserved balances, and low stock alerts for your branch."
       />
 
-      {/* Low stock banner — FR-12 */}
+      {/* ── Low stock banner — FR-12 ── */}
       {!loading && lowStockCount > 0 && (
         <div style={{
           display: "flex", alignItems: "center", gap: 12,
@@ -88,14 +94,13 @@ export default function MyStockPage() {
         </div>
       )}
 
-      {/* Filter & Search Bar */}
+      {/* ── Filter & Search Bar ── */}
       <div style={{
         background: "#fff", border: "1px solid #dde0d4",
         padding: "16px 24px", display: "flex",
         flexWrap: "wrap", alignItems: "center",
         justifyContent: "space-between", gap: 16,
       }}>
-
         {/* Search — FR-29 */}
         <div style={{
           display: "flex", alignItems: "center", gap: 8,
@@ -117,7 +122,6 @@ export default function MyStockPage() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
-
           {/* Low stock toggle */}
           <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
             <input
@@ -147,7 +151,14 @@ export default function MyStockPage() {
         </div>
       </div>
 
-      {/* Table */}
+      {/* ── Table ── */}
+      {/*
+        StockLevelResponse fields used:
+          id, itemCode, itemName, quantityOnHand, reservedQuantity,
+          minimumThreshold, isLowStock, branchName
+        NOTE: StockLevelResponse has NO unitOfMeasure field — column removed.
+        If you add unitOfMeasure to the DTO later, add it back here.
+      */}
       <div style={{ background: "#fff", border: "1px solid #dde0d4", overflow: "hidden" }}>
         {loading ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 0" }}>
@@ -173,7 +184,7 @@ export default function MyStockPage() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "#f7f8f4", borderBottom: "1px solid #e8ebe3" }}>
-                {["Item Code", "Item Name", "Unit", "On Hand", "Reserved", "Status"].map(h => (
+                {["Item Code", "Item Name", "On Hand", "Reserved", "Status"].map(h => (
                   <th key={h} style={{
                     textAlign: "left", padding: "10px 20px",
                     fontFamily: "'DM Mono', monospace", fontSize: 10,
@@ -187,40 +198,35 @@ export default function MyStockPage() {
             </thead>
             <tbody>
               {filteredStock.map((s, idx) => {
-                const isLow = s.quantityOnHand <= s.minimumThreshold
+                const low = isItemLow(s)
                 return (
-                  <tr key={s.itemId ?? idx} style={{
+                  <tr key={s.id ?? idx} style={{
                     borderBottom: idx < filteredStock.length - 1 ? "1px solid #f0f1ec" : "none",
                   }}>
 
-                    {/* Item Code */}
+                    {/* itemCode — from StockLevelResponse */}
                     <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>
-                      {s.itemCode}
+                      {s.itemCode ?? "—"}
                     </td>
 
-                    {/* Item Name */}
+                    {/* itemName */}
                     <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>
                       {s.itemName}
                     </td>
 
-                    {/* Unit — FR-09 */}
-                    <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>
-                      {s.unitOfMeasure || "—"}
-                    </td>
-
-                    {/* On Hand */}
-                    <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 600, color: isLow ? "#dc2626" : "#1a1f0e" }}>
+                    {/* quantityOnHand — red when low */}
+                    <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 600, color: low ? "#dc2626" : "#1a1f0e" }}>
                       {s.quantityOnHand}
                     </td>
 
-                    {/* Reserved */}
+                    {/* reservedQuantity */}
                     <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#9ca3af" }}>
                       {s.reservedQuantity ?? 0}
                     </td>
 
-                    {/* Status — FR-12 */}
+                    {/* Status badge — FR-12 */}
                     <td style={{ padding: "12px 20px" }}>
-                      {isLow ? (
+                      {low ? (
                         <span style={{
                           display: "inline-flex", alignItems: "center", gap: 4,
                           background: "#fef2f2", color: "#dc2626",

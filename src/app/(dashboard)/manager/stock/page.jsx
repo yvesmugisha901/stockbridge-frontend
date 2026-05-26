@@ -25,19 +25,41 @@ const IconDownload = () => (
 )
 
 export default function ManagerStockPage() {
-  const [stock, setStock]                     = useState([])
-  const [loading, setLoading]                 = useState(true)
-  const [search, setSearch]                   = useState("")
-  const [showOnlyViolations, setViolations]   = useState(false)
+  const [stock, setStock]                   = useState([])
+  // itemsMap: itemId → unitOfMeasure — because StockLevelResponse has no unitOfMeasure field
+  const [itemsMap, setItemsMap]             = useState({})
+  const [loading, setLoading]               = useState(true)
+  const [search, setSearch]                 = useState("")
+  const [showOnlyViolations, setViolations] = useState(false)
 
-  useEffect(() => { fetchStock() }, [])
+  useEffect(() => { fetchAll() }, [])
 
-  async function fetchStock() {
+  async function fetchAll() {
     try {
       setLoading(true)
-      const res = await api.get("/stock?size=200")
-      if (res?.success) setStock(res.data.content || [])
-      else toast.error("Failed to load stock levels")
+
+      // Fetch stock + items catalogue in parallel
+      // StockLevelResponse has no unitOfMeasure — we join from ItemResponse
+      const [stockRes, itemsRes] = await Promise.allSettled([
+        api.get("/stock?size=200"),
+        api.get("/items?size=200"),
+      ])
+
+      if (stockRes.status === "fulfilled" && stockRes.value?.success) {
+        // GET /api/v1/stock → Page<StockLevelResponse> → .data.content
+        setStock(stockRes.value.data?.content ?? [])
+      } else {
+        toast.error("Failed to load stock levels")
+      }
+
+      if (itemsRes.status === "fulfilled" && itemsRes.value?.success) {
+        // GET /api/v1/items → Page<ItemResponse> → .data.content
+        // Build map: id → unitOfMeasure for fast lookup
+        const items = itemsRes.value.data?.content ?? []
+        const map = {}
+        items.forEach(i => { map[i.id] = i.unitOfMeasure ?? "—" })
+        setItemsMap(map)
+      }
     } catch (err) {
       toast.error(err.message || "Failed to fetch stock")
     } finally {
@@ -55,7 +77,7 @@ export default function ManagerStockPage() {
     const rows = filteredStock.map(s => [
       s.itemCode ?? "",
       s.itemName ?? "",
-      s.unitOfMeasure ?? "",
+      itemsMap[s.itemId] ?? "—",
       s.quantityOnHand,
       s.reservedQuantity ?? 0,
       s.minimumThreshold,
@@ -82,13 +104,7 @@ export default function ManagerStockPage() {
     return matchSearch && matchFilter
   })
 
-  const branchName = stock.length > 0 ? stock[0].branchName : "My Branch"
-
-  const labelStyle = {
-    fontFamily: "'DM Mono', monospace", fontSize: 9,
-    textTransform: "uppercase", letterSpacing: "0.12em",
-    color: "#9ca3af", marginBottom: 6, display: "block",
-  }
+  const branchName = stock.length > 0 ? (stock[0].branchName ?? "My Branch") : "My Branch"
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -129,7 +145,6 @@ export default function ManagerStockPage() {
         flexWrap: "wrap", alignItems: "center",
         justifyContent: "space-between", gap: 16,
       }}>
-
         {/* Search — FR-29 */}
         <div style={{
           display: "flex", alignItems: "center", gap: 8,
@@ -151,7 +166,6 @@ export default function ManagerStockPage() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
-
           {/* Low stock toggle */}
           <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
             <input
@@ -198,17 +212,7 @@ export default function ManagerStockPage() {
       {/* ── Table ── */}
       <div style={{ background: "#fff", border: "1px solid #dde0d4", overflow: "hidden" }}>
         {loading ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 0" }}>
-            <div style={{
-              width: 24, height: 24,
-              border: "2px solid #dde0d4", borderTopColor: "#3d7a2b",
-              borderRadius: "50%", animation: "sb-spin 0.7s linear infinite",
-            }} />
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-              Loading stock levels...
-            </span>
-            <style>{`@keyframes sb-spin { to { transform: rotate(360deg) } }`}</style>
-          </div>
+          <LoadingSpinner label="Loading stock levels..." />
         ) : filteredStock.length === 0 ? (
           <div style={{ textAlign: "center", padding: "48px 0", fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9ca3af" }}>
             {search || showOnlyViolations
@@ -232,42 +236,30 @@ export default function ManagerStockPage() {
             <tbody>
               {filteredStock.map((s, idx) => {
                 const isLow = s.quantityOnHand <= s.minimumThreshold
+                // StockLevelResponse has no unitOfMeasure — look up from items catalogue
+                const unit = itemsMap[s.itemId] ?? "—"
                 return (
                   <tr key={s.itemId ?? idx} style={{
                     borderBottom: idx < filteredStock.length - 1 ? "1px solid #f0f1ec" : "none",
                   }}>
-
-                    {/* Item Code */}
                     <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>
                       {s.itemCode ?? "—"}
                     </td>
-
-                    {/* Item Name */}
                     <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>
                       {s.itemName}
                     </td>
-
-                    {/* Unit — FR-09 */}
                     <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>
-                      {s.unitOfMeasure ?? "—"}
+                      {unit}
                     </td>
-
-                    {/* On Hand */}
                     <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 600, color: isLow ? "#dc2626" : "#1a1f0e" }}>
                       {s.quantityOnHand}
                     </td>
-
-                    {/* Reserved */}
                     <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#9ca3af" }}>
                       {s.reservedQuantity ?? 0}
                     </td>
-
-                    {/* Min Threshold */}
                     <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#6b7260" }}>
                       {s.minimumThreshold}
                     </td>
-
-                    {/* Status — FR-12 */}
                     <td style={{ padding: "12px 20px" }}>
                       {isLow ? (
                         <span style={{
@@ -291,7 +283,6 @@ export default function ManagerStockPage() {
                         </span>
                       )}
                     </td>
-
                   </tr>
                 )
               })}
@@ -300,6 +291,23 @@ export default function ManagerStockPage() {
         )}
       </div>
 
+    </div>
+  )
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function LoadingSpinner({ label }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 0" }}>
+      <div style={{
+        width: 24, height: 24,
+        border: "2px solid #dde0d4", borderTopColor: "#3d7a2b",
+        borderRadius: "50%", animation: "sb-spin 0.7s linear infinite",
+      }} />
+      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+        {label}
+      </span>
+      <style>{`@keyframes sb-spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )
 }
