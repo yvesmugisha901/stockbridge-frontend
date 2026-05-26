@@ -1,111 +1,195 @@
 "use client"
-import { useState } from "react"
-import Link from "next/link"
-import PageHeader    from "@/components/ui/PageHeader"
-import UsersTable    from "@/components/users/UsersTable"
-import UserFormModal from "@/components/users/UserFormModal"
+import { useState, useEffect, useCallback } from "react"
+import PageHeader     from "@/components/ui/PageHeader"
+import UsersTable     from "@/components/users/UsersTable"
+import UserFormModal  from "@/components/users/UserFormModal"
+import { getToken }   from "@/lib/auth/tokens"
 
-const MOCK_BRANCHES = [
-  { id: "1", name: "Kigali HQ"      },
-  { id: "2", name: "Butare Depot"   },
-  { id: "3", name: "Musanze North"  },
-  { id: "4", name: "Gisenyi West"   },
-]
-
-const MOCK_USERS = [
-  { id: "1", name: "Alice Uwimana",    email: "alice@stockbridge.rw",  role: "ADMIN",      branchName: null,            active: true  },
-  { id: "2", name: "Bob Nkurunziza",   email: "bob@stockbridge.rw",    role: "MANAGER",    branchName: "Kigali HQ",     active: true  },
-  { id: "3", name: "Claire Ingabire",  email: "claire@stockbridge.rw", role: "STAFF",      branchName: "Butare Depot",  active: true  },
-  { id: "4", name: "David Hakizimana", email: "david@stockbridge.rw",  role: "HO_ADMIN",   branchName: null,            active: true  },
-  { id: "5", name: "Eve Mukamana",     email: "eve@stockbridge.rw",    role: "ACCOUNTANT", branchName: "Kigali HQ",     active: false },
-  { id: "6", name: "Frank Bizimana",   email: "frank@stockbridge.rw",  role: "STAFF",      branchName: "Musanze North", active: true  },
-]
+const API = process.env.NEXT_PUBLIC_API_URL
 
 export default function UsersPage() {
-  const [users, setUsers]     = useState(MOCK_USERS)
-  const [modalOpen, setModal] = useState(false)
-  const [editing, setEditing] = useState(null)
-  const [search, setSearch]   = useState("")
+  const [users,      setUsers]      = useState([])
+  const [page,       setPage]       = useState(0)         // 0-indexed (Spring Pageable)
+  const [totalPages, setTotalPages] = useState(1)
+  const [loading,    setLoading]    = useState(true)
+  const [error,      setError]      = useState(null)
+  const [modalOpen,  setModal]      = useState(false)
+  const [editing,    setEditing]    = useState(null)
+  const [branches,   setBranches]   = useState([])
 
+  // ─── fetch users ────────────────────────────────────────────────────────────
+  const loadUsers = useCallback(async (pageNum = 0) => {
+    try {
+      setLoading(true)
+      setError(null)
+      const res = await fetch(
+        `${API}/users?page=${pageNum}&size=20&sort=id,desc`,
+        { headers: { Authorization: `Bearer ${getToken()}` } }
+      )
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const j = await res.json()
+      // GET /users → ApiResponse<Page<UserResponse>>
+      // .data is the Page object; .data.content is the array
+      const pageData = j.data
+      setUsers(pageData.content ?? [])
+      setTotalPages(pageData.totalPages ?? 1)
+      setPage(pageData.number ?? 0)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // ─── fetch branches for the modal dropdown ──────────────────────────────────
+  useEffect(() => {
+    async function loadBranches() {
+      try {
+        const res = await fetch(`${API}/branches`, {
+          headers: { Authorization: `Bearer ${getToken()}` }
+        })
+        if (!res.ok) return
+        const j = await res.json()
+        setBranches(j.data ?? [])
+      } catch { /* silent — branch dropdown degrades gracefully */ }
+    }
+    loadBranches()
+  }, [])
+
+  useEffect(() => { loadUsers(0) }, [loadUsers])
+
+  // ─── modal helpers ──────────────────────────────────────────────────────────
   function openCreate() { setEditing(null); setModal(true) }
   function openEdit(u)  { setEditing(u);    setModal(true) }
 
-  function handleDeactivate(u) {
-    setUsers((prev) => prev.map((x) => x.id === u.id ? { ...x, active: !x.active } : x))
-  }
+  // ─── save (create or update) ─────────────────────────────────────────────────
+  async function handleSave(formData) {
+    const isEdit = Boolean(editing)
+    const url    = isEdit ? `${API}/users/${editing.id}` : `${API}/users`
+    const method = isEdit ? "PUT" : "POST"
 
-  async function handleSave(data) {
-    if (editing) {
-      setUsers((prev) => prev.map((x) => x.id === data.id ? { ...x, ...data } : x))
-    } else {
-      setUsers((prev) => [...prev, { ...data, id: String(Date.now()), active: true }])
+    const res = await fetch(url, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${getToken()}`,
+      },
+      body: JSON.stringify(formData),
+    })
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}))
+      throw new Error(j.message ?? `HTTP ${res.status}`)
     }
-    // TODO: swap for real API
-    // const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users${editing ? `/${data.id}` : ""}`, {
-    //   method: editing ? "PUT" : "POST",
-    //   headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-    //   body: JSON.stringify(data),
-    // })
+    setModal(false)
+    loadUsers(page)
   }
 
-  const filtered = users.filter(
-    (u) =>
-      u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase())
-  )
+  // ─── toggle active / deactivate ──────────────────────────────────────────────
+  async function handleToggleActive(user) {
+    const path  = user.active ? "deactivate" : "activate"
+    const res   = await fetch(`${API}/users/${user.id}/${path}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${getToken()}` },
+    })
+    if (!res.ok) return
+    loadUsers(page)
+  }
+
+  const active   = users.filter((u) => u.active).length
+  const inactive = users.length - active
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-
       <PageHeader
         title="User Management"
-        subtitle={`${users.length} users · ${users.filter((u) => u.active).length} active`}
+        subtitle={`${active} active · ${inactive} inactive`}
         action={{ label: "New User", onClick: openCreate }}
       />
 
-      {/* Search bar */}
-      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <div style={{ position: "relative", flex: 1, maxWidth: 340 }}>
-          <svg
-            style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#b8bead", pointerEvents: "none" }}
-            width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-          >
-            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name or email…"
-            style={{
-              width: "100%", boxSizing: "border-box",
-              fontFamily: "'DM Mono', monospace", fontSize: 12,
-              background: "#fff", border: "1px solid #dde0d4",
-              padding: "9px 14px 9px 32px", color: "#1a1f0e", outline: "none",
-            }}
-            onFocus={(e) => e.target.style.borderColor = "#3d7a2b"}
-            onBlur={(e)  => e.target.style.borderColor = "#dde0d4"}
-          />
-        </div>
-        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>
-          {filtered.length} result{filtered.length !== 1 ? "s" : ""}
-        </span>
+      {/* Summary pills */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        {[
+          { label: "Total",    value: users.length, bg: "#f7f8f4", color: "#1a1f0e" },
+          { label: "Active",   value: active,        bg: "#f0f7ed", color: "#3d7a2b" },
+          { label: "Inactive", value: inactive,       bg: "#fef2f2", color: "#dc2626" },
+        ].map((p) => (
+          <div key={p.label} style={{
+            background: p.bg, padding: "8px 16px",
+            border: "1px solid #dde0d4",
+            fontFamily: "'DM Mono', monospace", fontSize: 12,
+            display: "flex", alignItems: "center", gap: 8,
+          }}>
+            <span style={{ color: "#6b7260", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+              {p.label}
+            </span>
+            <span style={{ color: p.color, fontWeight: 600 }}>{p.value}</span>
+          </div>
+        ))}
       </div>
 
+      {error && (
+        <div style={{
+          background: "#fef2f2", border: "1px solid #fecaca",
+          color: "#dc2626", padding: "10px 16px",
+          fontFamily: "'DM Mono', monospace", fontSize: 12,
+        }}>
+          {error}
+        </div>
+      )}
+
       <UsersTable
-        users={filtered}
+        users={users}
+        loading={loading}
         onEdit={openEdit}
-        onDeactivate={handleDeactivate}
+        onToggleActive={handleToggleActive}
       />
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button
+            disabled={page === 0}
+            onClick={() => loadUsers(page - 1)}
+            style={paginationBtn(page === 0)}
+          >
+            ← Prev
+          </button>
+          <span style={{
+            fontFamily: "'DM Mono', monospace", fontSize: 11,
+            color: "#6b7260", alignSelf: "center",
+          }}>
+            Page {page + 1} of {totalPages}
+          </span>
+          <button
+            disabled={page >= totalPages - 1}
+            onClick={() => loadUsers(page + 1)}
+            style={paginationBtn(page >= totalPages - 1)}
+          >
+            Next →
+          </button>
+        </div>
+      )}
 
       <UserFormModal
         open={modalOpen}
         user={editing}
-        branches={MOCK_BRANCHES}
+        branches={branches}
         onClose={() => setModal(false)}
         onSave={handleSave}
       />
-
     </div>
   )
+}
+
+function paginationBtn(disabled) {
+  return {
+    background:  disabled ? "#f7f8f4" : "#fff",
+    color:       disabled ? "#b0b5a0" : "#1a1f0e",
+    border:      "1px solid #dde0d4",
+    padding:     "6px 14px",
+    cursor:      disabled ? "default" : "pointer",
+    fontFamily:  "'DM Mono', monospace",
+    fontSize:    11,
+    letterSpacing: "0.06em",
+  }
 }

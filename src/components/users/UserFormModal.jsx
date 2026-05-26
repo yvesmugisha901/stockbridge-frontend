@@ -1,237 +1,303 @@
 /**
  * UserFormModal — create or edit a user
  * Props: open, user (null = create), branches [], onClose(), onSave(data)
+ *
+ * CreateUserRequest fields: username, email, password, fullName, role, branchId
+ * UpdateUserRequest fields: username, email, fullName, role, branchId  (no password)
  */
 "use client"
 import { useState, useEffect } from "react"
+import { ROLES }               from "@/lib/utils/constants"
+import toast                   from "react-hot-toast"
 
-const ROLES = [
-  { value: "STAFF",      label: "Branch Staff" },
-  { value: "MANAGER",    label: "Branch Manager" },
-  { value: "HO_ADMIN",   label: "HO Admin" },
-  { value: "ACCOUNTANT", label: "Accountant" },
-  { value: "ADMIN",      label: "System Admin" },
-]
-
-const EMPTY = { name: "", email: "", password: "", role: "STAFF", branchId: "", active: true }
+const EMPTY = {
+  username: "",
+  fullName: "",
+  email:    "",
+  password: "",
+  role:     "",
+  branchId: "",
+}
 
 export default function UserFormModal({ open, user, branches = [], onClose, onSave }) {
-  const [form, setForm] = useState(EMPTY)
-  const [saving, setSaving] = useState(false)
-  const isEdit = !!user
+  const [form,    setForm]    = useState(EMPTY)
+  const [saving,  setSaving]  = useState(false)
+  const [errors,  setErrors]  = useState({})
 
+  const isEdit = Boolean(user)
+
+  // ─── sync form when modal opens / switches between create and edit ──────────
   useEffect(() => {
-    setForm(user ? { ...user, password: "" } : EMPTY)
-  }, [user, open])
+    if (open) {
+      if (user) {
+        setForm({
+          username: user.username  ?? "",
+          fullName: user.fullName  ?? "",
+          email:    user.email     ?? "",
+          password: "",                    // never pre-fill password on edit
+          role:     user.role      ?? "",
+          branchId: user.branchId != null ? String(user.branchId) : "",
+        })
+      } else {
+        setForm(EMPTY)
+      }
+      setErrors({})
+    }
+  }, [open, user])
 
   if (!open) return null
 
-  function set(k, v) { setForm((f) => ({ ...f, [k]: v })) }
+  // ─── field helpers ──────────────────────────────────────────────────────────
+  function set(field, value) {
+    setForm((prev) => ({ ...prev, [field]: value }))
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: null }))
+  }
 
-  async function handleSave() {
+  // ─── client-side validation ─────────────────────────────────────────────────
+  function validate() {
+    const e = {}
+    if (!form.username.trim())  e.username = "Username is required"
+    if (!form.fullName.trim())  e.fullName = "Full name is required"
+    if (!form.email.trim())     e.email    = "Email is required"
+    if (!isEdit && !form.password.trim()) e.password = "Password is required"
+    if (!isEdit && form.password.length < 6) e.password = "At least 6 characters"
+    if (!form.role)             e.role     = "Role is required"
+    return e
+  }
+
+  // ─── submit ─────────────────────────────────────────────────────────────────
+  async function handleSubmit(e) {
+    e.preventDefault()
+    const errs = validate()
+    if (Object.keys(errs).length) { setErrors(errs); return }
+
     setSaving(true)
     try {
-      await onSave?.(form)
-      onClose?.()
+      const payload = {
+        username: form.username.trim(),
+        fullName: form.fullName.trim(),
+        email:    form.email.trim(),
+        role:     form.role,
+        branchId: form.branchId ? Number(form.branchId) : null,
+      }
+      // Password only on create
+      if (!isEdit) payload.password = form.password
+
+      await onSave(payload)
+      toast.success(isEdit ? "User updated" : "User created")
+    } catch (err) {
+      toast.error(err.message ?? "Save failed")
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <>
-      {/* backdrop */}
-      <div
-        onClick={onClose}
-        style={{
-          position: "fixed", inset: 0,
-          background: "rgba(26,31,14,0.45)",
-          zIndex: 50,
-          backdropFilter: "blur(2px)",
-        }}
-      />
-
-      {/* modal */}
-      <div style={{
-        position: "fixed",
-        top: "50%", left: "50%",
-        transform: "translate(-50%, -50%)",
-        background: "#fff",
-        border: "1px solid #dde0d4",
-        width: "100%",
-        maxWidth: 480,
-        maxHeight: "90vh",
-        overflowY: "auto",
-        zIndex: 51,
-        boxShadow: "0 24px 64px rgba(26,31,14,0.18)",
-      }}>
-        {/* header */}
-        <div style={{
-          padding: "24px 28px",
-          borderBottom: "1px solid #dde0d4",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}>
-          <div>
-            <h2 style={{
-              fontFamily: "'DM Serif Display', Georgia, serif",
-              fontSize: 22,
-              color: "#1a1f0e",
-              margin: "0 0 2px",
-            }}>
-              {isEdit ? "Edit User" : "New User"}
-            </h2>
-            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260", margin: 0 }}>
-              {isEdit ? `Editing ${user.email}` : "Add a new system user"}
-            </p>
-          </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7260", fontSize: 20, lineHeight: 1 }}>
-            ×
-          </button>
+    <div style={overlay}>
+      <div style={panel}>
+        {/* Header */}
+        <div style={panelHeader}>
+          <span style={panelTitle}>{isEdit ? "Edit User" : "New User"}</span>
+          <button onClick={onClose} style={closeBtn}>✕</button>
         </div>
 
-        {/* body */}
-        <div style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 18 }}>
+        <form onSubmit={handleSubmit} style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 16 }}>
 
-          <Field label="Full Name">
-            <Input value={form.name} onChange={(v) => set("name", v)} placeholder="John Doe" />
+          {/* Username */}
+          <Field label="Username" error={errors.username}>
+            <input
+              style={input(errors.username)}
+              value={form.username}
+              onChange={(e) => set("username", e.target.value)}
+              autoComplete="off"
+            />
           </Field>
 
-          <Field label="Email Address">
-            <Input type="email" value={form.email} onChange={(v) => set("email", v)} placeholder="john@company.com" />
+          {/* Full Name */}
+          <Field label="Full Name" error={errors.fullName}>
+            <input
+              style={input(errors.fullName)}
+              value={form.fullName}
+              onChange={(e) => set("fullName", e.target.value)}
+            />
           </Field>
 
-          <Field label={isEdit ? "New Password (leave blank to keep)" : "Password"}>
-            <Input type="password" value={form.password} onChange={(v) => set("password", v)} placeholder="••••••••" />
+          {/* Email */}
+          <Field label="Email" error={errors.email}>
+            <input
+              type="email"
+              style={input(errors.email)}
+              value={form.email}
+              onChange={(e) => set("email", e.target.value)}
+              autoComplete="off"
+            />
           </Field>
 
-          <Field label="Role">
-            <Select value={form.role} onChange={(v) => set("role", v)} options={ROLES} />
-          </Field>
-
-          {/* Branch only relevant for non-admin roles */}
-          {form.role !== "ADMIN" && form.role !== "HO_ADMIN" && (
-            <Field label="Assigned Branch">
-              <Select
-                value={form.branchId}
-                onChange={(v) => set("branchId", v)}
-                options={[{ value: "", label: "— Select branch —" }, ...branches.map((b) => ({ value: b.id, label: b.name }))]}
+          {/* Password — only on create */}
+          {!isEdit && (
+            <Field label="Password" error={errors.password}>
+              <input
+                type="password"
+                style={input(errors.password)}
+                value={form.password}
+                onChange={(e) => set("password", e.target.value)}
+                autoComplete="new-password"
               />
             </Field>
           )}
 
-          {isEdit && (
-            <Field label="Status">
-              <div style={{ display: "flex", gap: 12 }}>
-                {[true, false].map((val) => (
-                  <label key={String(val)} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#1a1f0e" }}>
-                    <input
-                      type="radio"
-                      checked={form.active === val}
-                      onChange={() => set("active", val)}
-                      style={{ accentColor: "#3d7a2b" }}
-                    />
-                    {val ? "Active" : "Inactive"}
-                  </label>
-                ))}
-              </div>
-            </Field>
-          )}
-        </div>
+          {/* Role */}
+          <Field label="Role" error={errors.role}>
+            <select
+              style={input(errors.role)}
+              value={form.role}
+              onChange={(e) => set("role", e.target.value)}
+            >
+              <option value="">Select role</option>
+              {Object.values(ROLES).map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </Field>
 
-        {/* footer */}
-        <div style={{
-          padding: "16px 28px",
-          borderTop: "1px solid #dde0d4",
-          display: "flex",
-          gap: 10,
-          justifyContent: "flex-end",
-        }}>
-          <button onClick={onClose} style={cancelBtn}>Cancel</button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            style={saveBtn(saving)}
-            onMouseEnter={(e) => { if (!saving) e.currentTarget.style.background = "#2a5a1e" }}
-            onMouseLeave={(e) => { if (!saving) e.currentTarget.style.background = "#3d7a2b" }}
-          >
-            {saving ? "Saving…" : isEdit ? "Save Changes" : "Create User"}
-          </button>
-        </div>
+          {/* Branch */}
+          <Field label="Branch (optional)">
+            <select
+              style={input(false)}
+              value={form.branchId}
+              onChange={(e) => set("branchId", e.target.value)}
+            >
+              <option value="">— No branch —</option>
+              {branches.map((b) => (
+                <option key={b.id} value={String(b.id)}>{b.name} ({b.code})</option>
+              ))}
+            </select>
+          </Field>
+
+          {/* Actions */}
+          <div style={{ display: "flex", gap: 10, paddingTop: 4 }}>
+            <button
+              type="submit"
+              disabled={saving}
+              style={{
+                flex: 1,
+                background: saving ? "#b0b5a0" : "#1a1f0e",
+                color: "#fff",
+                border: "none",
+                padding: "10px 0",
+                cursor: saving ? "default" : "pointer",
+                fontFamily: "'DM Mono', monospace",
+                fontSize: 12,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+              }}
+            >
+              {saving ? "Saving…" : isEdit ? "Save Changes" : "Create User"}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                background: "#f7f8f4",
+                color: "#6b7260",
+                border: "1px solid #dde0d4",
+                padding: "10px 20px",
+                cursor: "pointer",
+                fontFamily: "'DM Mono', monospace",
+                fontSize: 12,
+                letterSpacing: "0.08em",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+
+        </form>
       </div>
-    </>
-  )
-}
-
-/* ── tiny sub-components ── */
-function Field({ label, children }) {
-  return (
-    <div>
-      <label style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.15em", color: "#6b7260", marginBottom: 6 }}>
-        {label}
-      </label>
-      {children}
     </div>
   )
 }
 
-function Input({ type = "text", value, onChange, placeholder }) {
+// ─── tiny layout helpers ─────────────────────────────────────────────────────
+function Field({ label, error, children }) {
   return (
-    <input
-      type={type}
-      value={value}
-      placeholder={placeholder}
-      onChange={(e) => onChange(e.target.value)}
-      style={{
-        width: "100%", boxSizing: "border-box",
-        fontFamily: "'DM Mono', monospace", fontSize: 13,
-        background: "#f7f8f4", border: "1px solid #dde0d4",
-        padding: "10px 14px", color: "#1a1f0e", outline: "none",
-      }}
-      onFocus={(e) => { e.target.style.borderColor = "#3d7a2b"; e.target.style.background = "#fff" }}
-      onBlur={(e)  => { e.target.style.borderColor = "#dde0d4"; e.target.style.background = "#f7f8f4" }}
-    />
+    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+      <label style={{
+        fontFamily: "'DM Mono', monospace",
+        fontSize: 10,
+        textTransform: "uppercase",
+        letterSpacing: "0.1em",
+        color: error ? "#dc2626" : "#6b7260",
+      }}>
+        {label}
+      </label>
+      {children}
+      {error && (
+        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#dc2626" }}>
+          {error}
+        </span>
+      )}
+    </div>
   )
 }
 
-function Select({ value, onChange, options }) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      style={{
-        width: "100%", boxSizing: "border-box",
-        fontFamily: "'DM Mono', monospace", fontSize: 13,
-        background: "#f7f8f4", border: "1px solid #dde0d4",
-        padding: "10px 14px", color: "#1a1f0e", outline: "none",
-        appearance: "none",
-        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7260' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
-        backgroundRepeat: "no-repeat",
-        backgroundPosition: "right 12px center",
-        paddingRight: 36,
-      }}
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>{o.label}</option>
-      ))}
-    </select>
-  )
+// ─── styles ──────────────────────────────────────────────────────────────────
+const overlay = {
+  position:       "fixed",
+  inset:          0,
+  background:     "rgba(0,0,0,0.45)",
+  display:        "flex",
+  alignItems:     "center",
+  justifyContent: "center",
+  zIndex:         1000,
 }
 
-const cancelBtn = {
-  background: "#f7f8f4", color: "#6b7260",
-  border: "1px solid #dde0d4", cursor: "pointer",
-  fontFamily: "'DM Mono', monospace", fontSize: 11,
-  textTransform: "uppercase", letterSpacing: "0.1em",
-  padding: "10px 20px",
+const panel = {
+  background:   "#fff",
+  border:       "1px solid #dde0d4",
+  width:        460,
+  maxWidth:     "calc(100vw - 32px)",
+  maxHeight:    "90vh",
+  overflowY:    "auto",
 }
 
-const saveBtn = (saving) => ({
-  background: "#3d7a2b", color: "#fff", border: "none",
-  cursor: saving ? "not-allowed" : "pointer",
-  fontFamily: "'DM Mono', monospace", fontSize: 11,
-  textTransform: "uppercase", letterSpacing: "0.1em",
-  padding: "10px 24px", opacity: saving ? 0.7 : 1,
-  transition: "background 0.2s",
-})
+const panelHeader = {
+  display:         "flex",
+  alignItems:      "center",
+  justifyContent:  "space-between",
+  padding:         "16px 28px",
+  borderBottom:    "1px solid #dde0d4",
+  background:      "#f7f8f4",
+}
+
+const panelTitle = {
+  fontFamily:    "'DM Mono', monospace",
+  fontSize:      13,
+  fontWeight:    600,
+  color:         "#1a1f0e",
+  letterSpacing: "0.04em",
+}
+
+const closeBtn = {
+  background:  "transparent",
+  border:      "none",
+  cursor:      "pointer",
+  color:       "#6b7260",
+  fontSize:    16,
+  lineHeight:  1,
+  padding:     4,
+}
+
+function input(hasError) {
+  return {
+    width:        "100%",
+    boxSizing:    "border-box",
+    border:       `1px solid ${hasError ? "#fca5a5" : "#dde0d4"}`,
+    background:   hasError ? "#fef2f2" : "#fafaf8",
+    padding:      "9px 12px",
+    fontFamily:   "'Inter', sans-serif",
+    fontSize:     13,
+    color:        "#1a1f0e",
+    outline:      "none",
+  }
+}

@@ -1,31 +1,71 @@
 "use client"
-import PageHeader     from "@/components/ui/PageHeader"
-import AdminStatsGrid from "@/components/dashboard/AdminStatsGrid"
-import QuickActions   from "@/components/dashboard/QuickActions"
-import RecentActivity from "@/components/dashboard/RecentActivity"
+import { useState, useEffect } from "react"
+import PageHeader      from "@/components/ui/PageHeader"
+import AdminStatsGrid  from "@/components/dashboard/AdminStatsGrid"
+import QuickActions    from "@/components/dashboard/QuickActions"
+import RecentActivity  from "@/components/dashboard/RecentActivity"
 
-const MOCK_STATS = {
-  totalUsers:        24,
-  activeBranches:     6,
-  activeItems:       183,
-  systemStatus:      "OK",
-  totalTransfers:    341,
-  pendingTransfers:    5,
-  newUsersThisMonth:   3,
-  lowStockCount:       4,
+const API = process.env.NEXT_PUBLIC_API_URL
+
+const EMPTY_STATS = {
+  totalUsers: 0, activeBranches: 0, activeItems: 0,
+  systemStatus: "OK", totalTransfers: 0, pendingTransfers: 0,
+  newUsersThisMonth: 0, lowStockCount: 0,
 }
 
-const MOCK_ACTIVITY = [
-  { user: "alice@stockbridge.rw",  action: "Created user John Doe (STAFF)",        type: "create", time: "2 min ago"  },
-  { user: "admin@stockbridge.rw",  action: "Deactivated branch Butare Depot",       type: "update", time: "14 min ago" },
-  { user: "alice@stockbridge.rw",  action: "Reset password for bob@stockbridge.rw", type: "update", time: "1 hr ago"   },
-  { user: "admin@stockbridge.rw",  action: "Created branch Musanze North",          type: "create", time: "3 hr ago"   },
-  { user: "system",                action: "Low stock alert: Cement 42.5N at KGL",  type: "login",  time: "5 hr ago"   },
-  { user: "admin@stockbridge.rw",  action: "Updated system config thresholds",      type: "update", time: "Yesterday"  },
-  { user: "alice@stockbridge.rw",  action: "Deleted inactive user ghost@sb.rw",     type: "delete", time: "Yesterday"  },
-]
+// inline until @/lib/auth/tokens.js is created
+function getToken() {
+  return document.cookie
+    .split("; ")
+    .find(r => r.startsWith("auth_token="))
+    ?.split("=")[1]
+}
 
 export default function AdminDashboard() {
+  const [stats,      setStats]      = useState(EMPTY_STATS)
+  const [activities, setActivities] = useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [error,      setError]      = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function load() {
+      try {
+        setLoading(true)
+        setError(null)
+
+        const headers = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        }
+
+        const [statsRes, activityRes] = await Promise.all([
+          fetch(`${API}/admin/stats`,    { headers }),
+          fetch(`${API}/admin/activity`, { headers }),
+        ])
+
+        if (!cancelled) {
+          if (statsRes.ok) {
+            const j = await statsRes.json()
+            setStats(j.data ?? j)
+          }
+          if (activityRes.ok) {
+            const j = await activityRes.json()
+            setActivities(j.data ?? j ?? [])
+          }
+        }
+      } catch (err) {
+        if (!cancelled) setError(err.message)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    load()
+    return () => { cancelled = true }
+  }, [])
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <PageHeader
@@ -33,17 +73,25 @@ export default function AdminDashboard() {
         subtitle="Manage users, branches, inventory, transfers, and system configuration."
       />
 
-      {/* 6 stat cards */}
-      <AdminStatsGrid stats={MOCK_STATS} />
+      {error && (
+        <div style={{
+          background: "#fef2f2", border: "1px solid #fecaca",
+          color: "#dc2626", padding: "10px 16px",
+          fontFamily: "'DM Mono', monospace", fontSize: 12,
+        }}>
+          Failed to load dashboard data: {error}
+        </div>
+      )}
 
-      {/* Quick Actions + Recent Activity */}
+      <AdminStatsGrid stats={stats} loading={loading} />
+
       <div style={{
         display: "grid",
         gridTemplateColumns: "minmax(0,1fr) minmax(0,1.4fr)",
         gap: 16,
       }}>
         <QuickActions />
-        <RecentActivity activities={MOCK_ACTIVITY} />
+        <RecentActivity activities={activities} loading={loading} />
       </div>
     </div>
   )
