@@ -1,10 +1,10 @@
 "use client"
-
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import PageHeader from "@/components/ui/PageHeader"
-import Link from "next/link"
+import { api } from "@/lib/api/client"
+import toast from "react-hot-toast"
 
-// ── Icons ─────────────────────────────────────────────────────────────────────
+// ── Icons ──────────────────────────────────────────────────────────────────────
 const IconAlert = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
     <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
@@ -13,196 +13,172 @@ const IconAlert = () => (
   </svg>
 )
 
-const IconCatalogue = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="8" y1="6" x2="21" y2="6"/>
-    <line x1="8" y1="12" x2="21" y2="12"/>
-    <line x1="8" y1="18" x2="21" y2="18"/>
-  </svg>
-)
-
-// ── Mock Comprehensive Stock Data ─────────────────────────────────────────────
-// Contains cross-referenced branch profiles mapping to your primary dashboard matrix
-const MOCK_STOCK_LEDGER = [
-  { item: "Cement 42.5N",    code: "CMNT-425", category: "Materials", branch: "Branch South", qty: 8,  threshold: 50 },
-  { item: "Cement 42.5N",    code: "CMNT-425", category: "Materials", branch: "Branch North", qty: 112, threshold: 50 },
-  { item: "Paint 20L",       code: "PNT-20L",  category: "Finishing", branch: "Branch West",  qty: 3,  threshold: 20 },
-  { item: "Paint 20L",       code: "PNT-20L",  category: "Finishing", branch: "Branch North", qty: 45,  threshold: 20 },
-  { item: "Steel Rods 12mm", code: "STEL-12",  category: "Structural", branch: "Branch North", qty: 12, threshold: 30 },
-  { item: "Steel Rods 12mm", code: "STEL-12",  category: "Structural", branch: "Branch East",  qty: 85,  threshold: 30 },
-  { item: "PVC Pipe 4\"",     code: "PVC-04",   category: "Plumbing",   branch: "Branch East",  qty: 5,  threshold: 25 },
-  { item: "PVC Pipe 4\"",     code: "PVC-04",   category: "Plumbing",   branch: "Branch South", qty: 40,  threshold: 25 },
-]
-
-const BRANCH_OPTIONS = ["All Branches", "Branch North", "Branch East", "Branch South", "Branch West"]
-
 export default function AllStockPage() {
-  const [selectedBranch, setSelectedBranch] = useState("All Branches")
-  const [showOnlyViolations, setShowOnlyViolations] = useState(false)
+  const [stock, setStock]       = useState([])
+  const [branches, setBranches] = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [error, setError]       = useState(null)
 
-  // Filter computation system matching branch allocation parameters
-  const filteredStock = MOCK_STOCK_LEDGER.filter(entry => {
-    const branchMatches = selectedBranch === "All Branches" || entry.branch === selectedBranch
-    const violationMatches = !showOnlyViolations || entry.qty < entry.threshold
-    return branchMatches && violationMatches
-  })
+  const [selectedBranchId, setSelectedBranchId] = useState("")
+  const [showOnlyLow, setShowOnlyLow]           = useState(false)
+
+  // Load branches for dropdown
+  useEffect(() => {
+    api.get("/branches?size=100&sort=name,asc")
+      .then((r) => setBranches(r?.data?.content ?? []))
+      .catch(() => {})
+  }, [])
+
+  // Load stock — NO sort param sent to backend (branchName is not a direct JPA field).
+  // Sorting is done client-side after the response arrives.
+  const loadStock = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const params = new URLSearchParams({ size: "500" })          // ← sort removed
+      if (selectedBranchId) params.append("branchId", selectedBranchId)
+      const res = await api.get(`/stock?${params.toString()}`)
+      const content = (res?.data?.content ?? [])
+        .sort((a, b) => (a.branchName ?? "").localeCompare(b.branchName ?? "")) // ← client-side sort
+      setStock(content)
+    } catch (err) {
+      setError(err.message)
+      toast.error("Failed to load stock levels")
+    } finally {
+      setLoading(false)
+    }
+  }, [selectedBranchId])
+
+  useEffect(() => { loadStock() }, [loadStock])
+
+  // Client-side low-stock filter
+  const filtered = showOnlyLow
+    ? stock.filter((s) => s.isLowStock === true || s.isLowStock === 1)
+    : stock
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      
+
       <PageHeader
         title="All Branches — Stock Levels"
-        subtitle="System-wide corporate inventory quantities, stock distributions, and threshold alert cross-referencing."
+        subtitle="System-wide inventory quantities, stock distributions, and threshold alert cross-referencing."
       />
 
-      {/* ── Filter Controls Panel ── */}
+      {/* Filter Controls */}
       <div style={{ background: "#fff", border: "1px solid #dde0d4", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-          {/* Branch Filter Dropdown */}
+
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, textTransform: "uppercase", color: "#6b7260" }}>Node Selection:</span>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, textTransform: "uppercase", color: "#6b7260" }}>
+              Branch:
+            </span>
             <select
-              value={selectedBranch}
-              onChange={(e) => setSelectedBranch(e.target.value)}
-              style={{
-                fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#1a1f0e",
-                padding: "6px 12px", border: "1px solid #dde0d4", background: "#f7f8f4", outline: "none"
-              }}
+              value={selectedBranchId}
+              onChange={(e) => setSelectedBranchId(e.target.value)}
+              style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#1a1f0e", padding: "6px 12px", border: "1px solid #dde0d4", background: "#f7f8f4", outline: "none" }}
             >
-              {BRANCH_OPTIONS.map(b => (
-                <option key={b} value={b}>{b}</option>
+              <option value="">All Branches</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
           </div>
 
-          {/* Toggle Alert Filter Checkbox */}
           <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#1a1f0e" }}>
             <input
               type="checkbox"
-              checked={showOnlyViolations}
-              onChange={(e) => setShowOnlyViolations(e.target.checked)}
+              checked={showOnlyLow}
+              onChange={(e) => setShowOnlyLow(e.target.checked)}
               style={{ accentColor: "#dc2626", width: 15, height: 15 }}
             />
-            <span>Show Low Stock Violations Only</span>
+            Show Low Stock Only
           </label>
         </div>
 
         <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>
-          Tracked Variants: {filteredStock.length}
+          {loading ? "Loading..." : `${filtered.length} records`}
         </span>
       </div>
 
-      {/* ── Global Matrix Inventory Ledger ── */}
+      {/* Table */}
       <div style={{ background: "#fff", border: "1px solid #dde0d4", padding: "24px" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-          
-          {/* Table Structural Header Line */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "100px 1.5fr 1fr 1.2fr 100px 120px",
-            padding: "8px 0",
-            borderBottom: "1px solid #e8ebe3",
-            gap: 12,
-          }}>
-            {["Item Code", "Item Nomenclature", "Category Group", "Location Branch", "Balance", "Alert Context"].map(h => (
-              <span key={h} style={{
-                fontFamily: "'DM Mono', monospace", fontSize: 9,
-                textTransform: "uppercase", letterSpacing: "0.12em", color: "#9ca3af",
-              }}>{h}</span>
-            ))}
+
+        {loading && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "48px 0" }}>
+            <div style={{ width: 20, height: 20, border: "2px solid #dde0d4", borderTopColor: "#3d7a2b", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260", textTransform: "uppercase" }}>Loading stock...</span>
+            <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
           </div>
+        )}
 
-          {/* Dynamic Table Items Content Row Loop */}
-          {filteredStock.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "48px 0", fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#6b7260" }}>
-              No inventory records located matching selection rules. All operations steady.
+        {error && !loading && (
+          <div style={{ padding: "16px", background: "#fef2f2", border: "1px solid #fecaca", fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#dc2626" }}>
+            {error}
+          </div>
+        )}
+
+        {!loading && !error && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "100px 1.5fr 1fr 1.2fr 90px 80px 110px 120px", padding: "8px 0", borderBottom: "1px solid #e8ebe3", gap: 12 }}>
+              {["Item Code", "Item Name", "Category", "Branch", "On Hand", "Reserved", "Min Threshold", "Status"].map(h => (
+                <span key={h} style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.12em", color: "#9ca3af" }}>{h}</span>
+              ))}
             </div>
-          ) : (
-            filteredStock.map((s, idx) => {
-              const isLow = s.qty < s.threshold
-              return (
+
+            {filtered.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "48px 0", fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#6b7260" }}>
+                {showOnlyLow ? "No low stock alerts. All items are above their minimum threshold." : "No stock records found."}
+              </div>
+            ) : (
+              filtered.map((s, idx) => (
                 <div
-                  key={s.item + s.branch + idx}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "100px 1.5fr 1fr 1.2fr 100px 120px",
-                    padding: "12px 0",
-                    borderBottom: idx < filteredStock.length - 1 ? "1px solid #f0f1ec" : "none",
-                    gap: 12,
-                    alignItems: "center",
-                  }}
+                  key={s.id}
+                  style={{ display: "grid", gridTemplateColumns: "100px 1.5fr 1fr 1.2fr 90px 80px 110px 120px", padding: "12px 0", borderBottom: idx < filtered.length - 1 ? "1px solid #f0f1ec" : "none", gap: 12, alignItems: "center" }}
                 >
-                  {/* System Code Tag */}
                   <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>
-                    {s.code}
+                    {s.itemCode ?? "—"}
                   </span>
 
-                  {/* Nomenclature String Descriptor */}
                   <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 500, color: "#1a1f0e" }}>
-                    {s.item}
+                    {s.itemName}
                   </span>
 
-                  {/* Category Target */}
-                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#6b7260" }}>
-                    {s.category}
-                  </span>
+                  {/* category not in StockLevelResponse — lives on ItemResponse */}
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#6b7260" }}>—</span>
 
-                  {/* Target Branch Assignment Node */}
                   <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#1a1f0e" }}>
-                    {s.branch}
+                    {s.branchName}
                   </span>
 
-                  {/* Live Balance Quantification */}
-                  <span style={{ 
-                    fontFamily: "'Inter', sans-serif", 
-                    fontSize: 13, 
-                    fontWeight: 600, 
-                    color: isLow ? "#dc2626" : "#1a1f0e" 
-                  }}>
-                    {s.qty} units
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: s.isLowStock ? "#dc2626" : "#1a1f0e" }}>
+                    {s.quantityOnHand}
                   </span>
 
-                  {/* Alert Threshold Pill Execution */}
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9ca3af" }}>
+                    {s.reservedQuantity ?? 0}
+                  </span>
+
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>
+                    {s.minimumThreshold}
+                  </span>
+
                   <div>
-                    {isLow ? (
-                      <span style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 4,
-                        background: "#fef2f2",
-                        color: "#dc2626",
-                        fontSize: 10,
-                        fontFamily: "'DM Mono', monospace",
-                        fontWeight: 600,
-                        border: "1px solid #fee2e2",
-                        padding: "2px 6px"
-                      }}>
-                        <IconAlert /> MIN {s.threshold}
+                    {s.isLowStock ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#fef2f2", color: "#dc2626", fontSize: 10, fontFamily: "'DM Mono', monospace", fontWeight: 600, border: "1px solid #fee2e2", padding: "2px 6px" }}>
+                        <IconAlert /> LOW
                       </span>
                     ) : (
-                      <span style={{
-                        display: "inline-block",
-                        background: "#f0f7ed",
-                        color: "#3d7a2b",
-                        fontSize: 10,
-                        fontFamily: "'DM Mono', monospace",
-                        border: "1px solid #fee2e2",
-                        borderColor: "#e1eedb",
-                        padding: "2px 6px"
-                      }}>
-                        SAFE (MIN {s.threshold})
+                      <span style={{ display: "inline-block", background: "#f0f7ed", color: "#3d7a2b", fontSize: 10, fontFamily: "'DM Mono', monospace", border: "1px solid #e1eedb", padding: "2px 6px" }}>
+                        SAFE
                       </span>
                     )}
                   </div>
-
                 </div>
-              )
-            })
-          )}
-
-        </div>
+              ))
+            )}
+          </>
+        )}
       </div>
-
     </div>
   )
 }
