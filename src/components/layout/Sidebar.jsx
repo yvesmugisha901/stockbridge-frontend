@@ -48,37 +48,36 @@ function ConfigIcon() {
 function BellIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
 }
+function SettingsIcon() {
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+}
 
 const NAV = {
   [ROLES.STAFF]: [
-    { label: "Dashboard",         href: "/staff",                 icon: DashboardIcon },
-    { label: "My Stock",          href: "/staff/stock",           icon: BoxIcon       },
-    { label: "Transfer Requests", href: "/staff/transfers",       icon: TruckIcon     },
-    { label: "New Transfer",      href: "/staff/transfers/new",   icon: PlusIcon      },
-    { label: "Notifications",     href: "/staff/notifications",   icon: BellIcon      },
+    { label: "Dashboard",         href: "/staff",               icon: DashboardIcon },
+    { label: "My Stock",          href: "/staff/stock",         icon: BoxIcon       },
+    { label: "Transfer Requests", href: "/staff/transfers",     icon: TruckIcon     },
+    { label: "New Transfer",      href: "/staff/transfers/new", icon: PlusIcon      },
   ],
   [ROLES.MANAGER]: [
-    { label: "Dashboard",         href: "/manager",               icon: DashboardIcon   },
-    { label: "Branch Stock",      href: "/manager/stock",         icon: BoxIcon         },
-    { label: "Pending Approvals", href: "/manager/approvals",     icon: CheckCircleIcon },
-    { label: "Reports",           href: "/manager/reports",       icon: ReportIcon      },
-    { label: "Notifications",     href: "/manager/notifications", icon: BellIcon        },
+    { label: "Dashboard",         href: "/manager",             icon: DashboardIcon   },
+    { label: "Branch Stock",      href: "/manager/stock",       icon: BoxIcon         },
+    { label: "Pending Approvals", href: "/manager/approvals",   icon: CheckCircleIcon },
+    { label: "Reports",           href: "/manager/reports",     icon: ReportIcon      },
   ],
   [ROLES.HO_ADMIN]: [
-    { label: "Dashboard",          href: "/ho-admin",                  icon: DashboardIcon   },
-    { label: "All Stock",          href: "/ho-admin/stock",            icon: BoxIcon         },
-    { label: "Final Approvals",    href: "/ho-admin/approvals",        icon: CheckCircleIcon },
-    { label: "Inventory Catalogue",href: "/ho-admin/inventory",        icon: CatalogueIcon   },
-    { label: "Reports",            href: "/ho-admin/reports",          icon: ReportIcon      },
-    { label: "Notifications",      href: "/ho-admin/notifications",    icon: BellIcon        },
+    { label: "Dashboard",          href: "/ho-admin",             icon: DashboardIcon   },
+    { label: "All Stock",          href: "/ho-admin/stock",       icon: BoxIcon         },
+    { label: "Final Approvals",    href: "/ho-admin/approvals",   icon: CheckCircleIcon },
+    { label: "Inventory Catalogue",href: "/ho-admin/inventory",   icon: CatalogueIcon   },
+    { label: "Reports",            href: "/ho-admin/reports",     icon: ReportIcon      },
   ],
-[ROLES.ACCOUNTANT]: [
-  { label: "Dashboard",          href: "/accountant",                icon: DashboardIcon },
-  { label: "Approved Transfers", href: "/accountant/transfers",      icon: TruckIcon     },
-  { label: "Finance Summary",    href: "/accountant/finance",        icon: DollarIcon    },
-  { label: "Reports",            href: "/accountant/reports",        icon: ReportIcon    },
-  { label: "Notifications",      href: "/accountant/notifications",  icon: BellIcon      },
-],
+  [ROLES.ACCOUNTANT]: [
+    { label: "Dashboard",          href: "/accountant",           icon: DashboardIcon },
+    { label: "Approved Transfers", href: "/accountant/transfers", icon: TruckIcon     },
+    { label: "Finance Summary",    href: "/accountant/finance",   icon: DollarIcon    },
+    { label: "Reports",            href: "/accountant/reports",   icon: ReportIcon    },
+  ],
   [ROLES.ADMIN]: [
     { label: "Dashboard",           href: "/admin",           icon: DashboardIcon, group: "Overview"        },
     { label: "Users",               href: "/admin/users",     icon: UsersIcon,     group: "People & Places" },
@@ -101,7 +100,7 @@ const ROLE_LABEL = {
   [ROLES.ACCOUNTANT]: "Accountant",
 }
 
-export default function Sidebar({ notifications = [] }) {
+export default function Sidebar({ notifications = [], onMarkAllRead, onMarkRead }) {
   const { user }  = useAuthContext()
   const pathname  = usePathname()
   const links     = NAV[user?.role] || []
@@ -109,7 +108,7 @@ export default function Sidebar({ notifications = [] }) {
   const isAdmin   = user?.role === ROLES.ADMIN
 
   const [bellOpen, setBellOpen] = useState(false)
-  const bellRef    = useRef(null)
+  const bellRef     = useRef(null)
   const unreadCount = notifications.filter(n => !n.read).length
 
   useEffect(() => {
@@ -121,35 +120,36 @@ export default function Sidebar({ notifications = [] }) {
     return () => document.removeEventListener("mousedown", handler)
   }, [bellOpen])
 
+  const navLinkStyle = (href) => {
+    const active =
+      pathname === href ||
+      (href.length > 1 &&
+        pathname.startsWith(href) &&
+        href !== `/${user?.role?.toLowerCase().replace("_", "-")}`)
+    return {
+      active,
+      style: {
+        display: "flex", alignItems: "center", gap: 10,
+        padding: "8px 10px", marginBottom: 1,
+        textDecoration: "none", borderRadius: 6,
+        fontFamily: "'Inter', system-ui, sans-serif",
+        fontSize: 13, fontWeight: active ? 500 : 400,
+        color: active ? "#3d7a2b" : "#4b5563",
+        background: active ? "#f0f7ed" : "transparent",
+        borderLeft: `2px solid ${active ? "#3d7a2b" : "transparent"}`,
+        transition: "color 0.13s, background 0.13s",
+      }
+    }
+  }
+
   const renderLinks = (items) =>
     items.map(({ label, href, icon: NavIcon }) => {
-      const active =
-        pathname === href ||
-        (href.length > 1 &&
-          pathname.startsWith(href) &&
-          href !== `/${user?.role?.toLowerCase()}`)
-      const isNotif = label === "Notifications"
-
+      const { active, style } = navLinkStyle(href)
       return (
         <Link
           key={href}
           href={href}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "8px 10px",
-            marginBottom: 1,
-            textDecoration: "none",
-            borderRadius: 6,
-            fontFamily: "'Inter', system-ui, sans-serif",
-            fontSize: 13,
-            fontWeight: active ? 500 : 400,
-            color: active ? "#3d7a2b" : "#4b5563",
-            background: active ? "#f0f7ed" : "transparent",
-            borderLeft: `2px solid ${active ? "#3d7a2b" : "transparent"}`,
-            transition: "color 0.13s, background 0.13s",
-          }}
+          style={style}
           onMouseEnter={(e) => {
             if (!active) {
               e.currentTarget.style.color = "#1a1f0e"
@@ -167,20 +167,6 @@ export default function Sidebar({ notifications = [] }) {
             <NavIcon />
           </span>
           {label}
-          {isNotif && unreadCount > 0 && (
-            <span style={{
-              marginLeft: "auto",
-              background: "#e24b4a",
-              color: "#fff",
-              fontSize: 10,
-              fontWeight: 600,
-              padding: "1px 6px",
-              borderRadius: 10,
-              fontFamily: "'DM Mono', monospace",
-            }}>
-              {unreadCount}
-            </span>
-          )}
         </Link>
       )
     })
@@ -194,13 +180,9 @@ export default function Sidebar({ notifications = [] }) {
     return groups.map((group) => (
       <div key={group} style={{ marginBottom: 4 }}>
         <p style={{
-          fontFamily: "'DM Mono', monospace",
-          fontSize: 9,
-          textTransform: "uppercase",
-          letterSpacing: "0.16em",
-          color: "#b8bead",
-          margin: "10px 0 4px",
-          padding: "0 10px",
+          fontFamily: "'DM Mono', monospace", fontSize: 9,
+          textTransform: "uppercase", letterSpacing: "0.16em",
+          color: "#b8bead", margin: "10px 0 4px", padding: "0 10px",
         }}>
           {group}
         </p>
@@ -209,38 +191,26 @@ export default function Sidebar({ notifications = [] }) {
     ))
   }
 
+  const settingsActive = pathname === "/settings"
+
   return (
     <aside style={{
-      width: 228,
-      minWidth: 228,
-      height: "100vh",
-      background: "#ffffff",
-      borderRight: "1px solid #e8ebe3",
-      display: "flex",
-      flexDirection: "column",
+      width: 228, minWidth: 228, height: "100vh",
+      background: "#ffffff", borderRight: "1px solid #e8ebe3",
+      display: "flex", flexDirection: "column",
     }}>
 
       {/* Logo bar */}
       <div style={{
-        height: 60,
-        display: "flex",
-        alignItems: "center",
-        padding: "0 16px 0 20px",
-        borderBottom: "1px solid #e8ebe3",
-        flexShrink: 0,
-        justifyContent: "space-between",
+        height: 60, display: "flex", alignItems: "center",
+        padding: "0 16px 0 20px", borderBottom: "1px solid #e8ebe3",
+        flexShrink: 0, justifyContent: "space-between",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{
-            width: 30, height: 30,
-            background: "#3d7a2b",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#fff",
-            fontSize: 10,
-            fontWeight: 600,
-            flexShrink: 0,
+            width: 30, height: 30, background: "#3d7a2b",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            color: "#fff", fontSize: 10, fontWeight: 600, flexShrink: 0,
             clipPath: "polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)",
             fontFamily: "'DM Mono', monospace",
           }}>
@@ -248,67 +218,56 @@ export default function Sidebar({ notifications = [] }) {
           </span>
           <span style={{
             fontFamily: "'DM Serif Display', Georgia, serif",
-            fontSize: 17,
-            color: "#1a1f0e",
-            letterSpacing: "-0.3px",
+            fontSize: 17, color: "#1a1f0e", letterSpacing: "-0.3px",
           }}>
             StockBridge
           </span>
         </div>
 
-        {/* Bell — admin only, sits in the logo bar */}
-        {isAdmin && (
-          <div ref={bellRef} style={{ position: "relative" }}>
-            <button
-              onClick={() => setBellOpen(o => !o)}
-              aria-label="Notifications"
-              style={{
-                position: "relative",
-                background: bellOpen ? "#f0f7ed" : "none",
-                border: "none",
-                cursor: "pointer",
-                padding: 6,
-                borderRadius: 6,
-                color: bellOpen ? "#3d7a2b" : "#9ca3af",
-                display: "flex",
-                alignItems: "center",
-                transition: "color 0.13s, background 0.13s",
-              }}
-              onMouseEnter={e => {
-                if (!bellOpen) {
-                  e.currentTarget.style.background = "#f7f8f4"
-                  e.currentTarget.style.color = "#1a1f0e"
-                }
-              }}
-              onMouseLeave={e => {
-                if (!bellOpen) {
-                  e.currentTarget.style.background = "none"
-                  e.currentTarget.style.color = "#9ca3af"
-                }
-              }}
-            >
-              <BellIcon />
-              {unreadCount > 0 && (
-                <span style={{
-                  position: "absolute",
-                  top: 2, right: 2,
-                  width: 8, height: 8,
-                  background: "#e24b4a",
-                  borderRadius: "50%",
-                  border: "2px solid #fff",
-                }} />
-              )}
-            </button>
-
-            {bellOpen && (
-              <NotificationDropdown
-                notifications={notifications}
-                onMarkAllRead={() => { /* wire to your state/API */ }}
-                onClose={() => setBellOpen(false)}
-              />
+        {/* Bell */}
+        <div ref={bellRef} style={{ position: "relative" }}>
+          <button
+            onClick={() => setBellOpen(o => !o)}
+            aria-label="Notifications"
+            style={{
+              position: "relative", background: bellOpen ? "#f0f7ed" : "none",
+              border: "none", cursor: "pointer", padding: 6, borderRadius: 6,
+              color: bellOpen ? "#3d7a2b" : "#9ca3af",
+              display: "flex", alignItems: "center",
+              transition: "color 0.13s, background 0.13s",
+            }}
+            onMouseEnter={e => {
+              if (!bellOpen) {
+                e.currentTarget.style.background = "#f7f8f4"
+                e.currentTarget.style.color = "#1a1f0e"
+              }
+            }}
+            onMouseLeave={e => {
+              if (!bellOpen) {
+                e.currentTarget.style.background = "none"
+                e.currentTarget.style.color = "#9ca3af"
+              }
+            }}
+          >
+            <BellIcon />
+            {unreadCount > 0 && (
+              <span style={{
+                position: "absolute", top: 2, right: 2,
+                width: 8, height: 8, background: "#e24b4a",
+                borderRadius: "50%", border: "2px solid #fff",
+              }} />
             )}
-          </div>
-        )}
+          </button>
+
+          {bellOpen && (
+            <NotificationDropdown
+              notifications={notifications}
+              onMarkAllRead={() => { onMarkAllRead?.(); setBellOpen(false) }}
+              onMarkRead={onMarkRead}
+              onClose={() => setBellOpen(false)}
+            />
+          )}
+        </div>
       </div>
 
       {/* Nav */}
@@ -316,50 +275,68 @@ export default function Sidebar({ notifications = [] }) {
         {isAdmin ? renderAdminNav() : (
           <>
             <p style={{
-              fontFamily: "'DM Mono', monospace",
-              fontSize: 9,
-              textTransform: "uppercase",
-              letterSpacing: "0.16em",
-              color: "#b8bead",
-              margin: "0 0 6px",
-              padding: "0 10px",
+              fontFamily: "'DM Mono', monospace", fontSize: 9,
+              textTransform: "uppercase", letterSpacing: "0.16em",
+              color: "#b8bead", margin: "0 0 6px", padding: "0 10px",
             }}>
               Menu
             </p>
             {renderLinks(links)}
           </>
         )}
+
+        {/* Settings — sits at the bottom of nav, with other links */}
+        <div style={{ marginTop: 8, borderTop: "1px solid #e8ebe3", paddingTop: 8 }}>
+          <Link
+            href="/settings"
+            style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "8px 10px", textDecoration: "none", borderRadius: 6,
+              fontFamily: "'Inter', system-ui, sans-serif", fontSize: 13,
+              fontWeight: settingsActive ? 500 : 400,
+              color: settingsActive ? "#3d7a2b" : "#4b5563",
+              background: settingsActive ? "#f0f7ed" : "transparent",
+              borderLeft: `2px solid ${settingsActive ? "#3d7a2b" : "transparent"}`,
+              transition: "color 0.13s, background 0.13s",
+            }}
+            onMouseEnter={(e) => {
+              if (!settingsActive) {
+                e.currentTarget.style.color = "#1a1f0e"
+                e.currentTarget.style.background = "#f7f8f4"
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!settingsActive) {
+                e.currentTarget.style.color = "#4b5563"
+                e.currentTarget.style.background = "transparent"
+              }
+            }}
+          >
+            <span style={{ flexShrink: 0, color: settingsActive ? "#3d7a2b" : "#9ca3af" }}>
+              <SettingsIcon />
+            </span>
+            Settings
+          </Link>
+        </div>
       </nav>
 
       {/* User strip */}
       <div style={{
-        padding: "12px 16px",
-        borderTop: "1px solid #e8ebe3",
-        background: "#f9faf7",
-        flexShrink: 0,
+        flexShrink: 0, padding: "12px 16px",
+        borderTop: "1px solid #e8ebe3", background: "#f9faf7",
       }}>
         <p style={{
-          fontFamily: "'Inter', system-ui, sans-serif",
-          fontSize: 13,
-          fontWeight: 500,
-          color: "#1a1f0e",
-          margin: "0 0 4px",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
+          fontFamily: "'Inter', system-ui, sans-serif", fontSize: 13,
+          fontWeight: 500, color: "#1a1f0e", margin: "0 0 4px",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }}>
-          {user?.name || user?.sub}
+          {user?.fullName || user?.name || user?.sub}
         </p>
         <span style={{
-          fontFamily: "'DM Mono', monospace",
-          fontSize: 9,
-          textTransform: "uppercase",
-          letterSpacing: "0.14em",
-          color: "#3d7a2b",
-          background: "#e4f0df",
-          padding: "3px 8px",
-          borderRadius: 3,
-          display: "inline-block",
+          fontFamily: "'DM Mono', monospace", fontSize: 9,
+          textTransform: "uppercase", letterSpacing: "0.14em",
+          color: "#3d7a2b", background: "#e4f0df",
+          padding: "3px 8px", borderRadius: 3, display: "inline-block",
         }}>
           {roleLabel}
         </span>
