@@ -1,10 +1,8 @@
 "use client"
 import Link from "next/link"
-import { useState, useRef, useEffect } from "react"
 import { usePathname } from "next/navigation"
 import { useAuthContext } from "@/lib/context/AuthContext"
 import { ROLES } from "@/lib/utils/constants"
-import { NotificationDropdown } from "@/components/layout/NotificationDropdown"
 
 function DashboardIcon() {
   return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -45,9 +43,6 @@ function LogIcon() {
 function ConfigIcon() {
   return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
 }
-function BellIcon() {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-}
 function SettingsIcon() {
   return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
 }
@@ -66,11 +61,11 @@ const NAV = {
     { label: "Reports",           href: "/manager/reports",     icon: ReportIcon      },
   ],
   [ROLES.HO_ADMIN]: [
-    { label: "Dashboard",          href: "/ho-admin",             icon: DashboardIcon   },
-    { label: "All Stock",          href: "/ho-admin/stock",       icon: BoxIcon         },
-    { label: "Final Approvals",    href: "/ho-admin/approvals",   icon: CheckCircleIcon },
-    { label: "Inventory Catalogue",href: "/ho-admin/inventory",   icon: CatalogueIcon   },
-    { label: "Reports",            href: "/ho-admin/reports",     icon: ReportIcon      },
+    { label: "Dashboard",           href: "/ho-admin",           icon: DashboardIcon   },
+    { label: "All Stock",           href: "/ho-admin/stock",     icon: BoxIcon         },
+    { label: "Final Approvals",     href: "/ho-admin/approvals", icon: CheckCircleIcon },
+    { label: "Inventory Catalogue", href: "/ho-admin/inventory", icon: CatalogueIcon   },
+    { label: "Reports",             href: "/ho-admin/reports",   icon: ReportIcon      },
   ],
   [ROLES.ACCOUNTANT]: [
     { label: "Dashboard",          href: "/accountant",           icon: DashboardIcon },
@@ -100,25 +95,16 @@ const ROLE_LABEL = {
   [ROLES.ACCOUNTANT]: "Accountant",
 }
 
-export default function Sidebar({ notifications = [], onMarkAllRead, onMarkRead }) {
+export default function Sidebar() {
   const { user }  = useAuthContext()
   const pathname  = usePathname()
   const links     = NAV[user?.role] || []
   const roleLabel = ROLE_LABEL[user?.role] || user?.role
   const isAdmin   = user?.role === ROLES.ADMIN
 
-  const [bellOpen, setBellOpen] = useState(false)
-  const bellRef     = useRef(null)
-  const unreadCount = notifications.filter(n => !n.read).length
-
-  useEffect(() => {
-    if (!bellOpen) return
-    const handler = (e) => {
-      if (bellRef.current && !bellRef.current.contains(e.target)) setBellOpen(false)
-    }
-    document.addEventListener("mousedown", handler)
-    return () => document.removeEventListener("mousedown", handler)
-  }, [bellOpen])
+  // Resolve the display name — tries every field the JWT might use
+  const displayName = user?.fullName || user?.full_name || user?.name || user?.username || user?.sub || "—"
+  const initial     = displayName.charAt(0).toUpperCase()
 
   const navLinkStyle = (href) => {
     const active =
@@ -203,8 +189,8 @@ export default function Sidebar({ notifications = [], onMarkAllRead, onMarkRead 
       {/* Logo bar */}
       <div style={{
         height: 60, display: "flex", alignItems: "center",
-        padding: "0 16px 0 20px", borderBottom: "1px solid #e8ebe3",
-        flexShrink: 0, justifyContent: "space-between",
+        padding: "0 20px", borderBottom: "1px solid #e8ebe3",
+        flexShrink: 0,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{
@@ -223,51 +209,6 @@ export default function Sidebar({ notifications = [], onMarkAllRead, onMarkRead 
             StockBridge
           </span>
         </div>
-
-        {/* Bell */}
-        <div ref={bellRef} style={{ position: "relative" }}>
-          <button
-            onClick={() => setBellOpen(o => !o)}
-            aria-label="Notifications"
-            style={{
-              position: "relative", background: bellOpen ? "#f0f7ed" : "none",
-              border: "none", cursor: "pointer", padding: 6, borderRadius: 6,
-              color: bellOpen ? "#3d7a2b" : "#9ca3af",
-              display: "flex", alignItems: "center",
-              transition: "color 0.13s, background 0.13s",
-            }}
-            onMouseEnter={e => {
-              if (!bellOpen) {
-                e.currentTarget.style.background = "#f7f8f4"
-                e.currentTarget.style.color = "#1a1f0e"
-              }
-            }}
-            onMouseLeave={e => {
-              if (!bellOpen) {
-                e.currentTarget.style.background = "none"
-                e.currentTarget.style.color = "#9ca3af"
-              }
-            }}
-          >
-            <BellIcon />
-            {unreadCount > 0 && (
-              <span style={{
-                position: "absolute", top: 2, right: 2,
-                width: 8, height: 8, background: "#e24b4a",
-                borderRadius: "50%", border: "2px solid #fff",
-              }} />
-            )}
-          </button>
-
-          {bellOpen && (
-            <NotificationDropdown
-              notifications={notifications}
-              onMarkAllRead={() => { onMarkAllRead?.(); setBellOpen(false) }}
-              onMarkRead={onMarkRead}
-              onClose={() => setBellOpen(false)}
-            />
-          )}
-        </div>
       </div>
 
       {/* Nav */}
@@ -285,7 +226,7 @@ export default function Sidebar({ notifications = [], onMarkAllRead, onMarkRead 
           </>
         )}
 
-        {/* Settings — sits at the bottom of nav, with other links */}
+        {/* Settings */}
         <div style={{ marginTop: 8, borderTop: "1px solid #e8ebe3", paddingTop: 8 }}>
           <Link
             href="/settings"
@@ -320,26 +261,41 @@ export default function Sidebar({ notifications = [], onMarkAllRead, onMarkRead 
         </div>
       </nav>
 
-      {/* User strip */}
+      {/* User strip — avatar + full name + role badge */}
       <div style={{
         flexShrink: 0, padding: "12px 16px",
         borderTop: "1px solid #e8ebe3", background: "#f9faf7",
+        display: "flex", alignItems: "center", gap: 10,
       }}>
-        <p style={{
-          fontFamily: "'Inter', system-ui, sans-serif", fontSize: 13,
-          fontWeight: 500, color: "#1a1f0e", margin: "0 0 4px",
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}>
-          {user?.fullName || user?.name || user?.sub}
-        </p>
+        {/* Avatar circle */}
         <span style={{
-          fontFamily: "'DM Mono', monospace", fontSize: 9,
-          textTransform: "uppercase", letterSpacing: "0.14em",
-          color: "#3d7a2b", background: "#e4f0df",
-          padding: "3px 8px", borderRadius: 3, display: "inline-block",
+          width: 32, height: 32, borderRadius: "50%",
+          background: "#e4f0df", color: "#3d7a2b",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600,
+          flexShrink: 0,
         }}>
-          {roleLabel}
+          {initial}
         </span>
+
+        {/* Name + role */}
+        <div style={{ minWidth: 0 }}>
+          <p style={{
+            fontFamily: "'Inter', system-ui, sans-serif", fontSize: 13,
+            fontWeight: 500, color: "#1a1f0e", margin: "0 0 3px",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {displayName}
+          </p>
+          <span style={{
+            fontFamily: "'DM Mono', monospace", fontSize: 9,
+            textTransform: "uppercase", letterSpacing: "0.14em",
+            color: "#3d7a2b", background: "#e4f0df",
+            padding: "2px 7px", borderRadius: 3, display: "inline-block",
+          }}>
+            {roleLabel}
+          </span>
+        </div>
       </div>
 
     </aside>

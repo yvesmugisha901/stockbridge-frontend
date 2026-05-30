@@ -5,7 +5,7 @@ import { api } from "@/lib/api/client"
 
 export default function SettingsPage() {
   const [profile,  setProfile]  = useState({ name: "", email: "", role: "", branch: "" })
-  const [pwForm,   setPwForm]   = useState({ currentPassword: "", newPassword: "", confirm: "" })
+  const [pwForm,   setPwForm]   = useState({ currentPassword: "", newPassword: "", confirmPassword: "" })
   const [loading,  setLoading]  = useState(true)
   const [saving,   setSaving]   = useState(false)
   const [pwSaving, setPwSaving] = useState(false)
@@ -23,9 +23,7 @@ export default function SettingsPage() {
           branch: u.branchName ?? u.branch ?? ""
         })
       })
-      .catch(err => {
-        setMsg({ type: "error", text: err.message })
-      })
+      .catch(err => setMsg({ type: "error", text: err.message }))
       .finally(() => setLoading(false))
   }, [])
 
@@ -42,20 +40,21 @@ export default function SettingsPage() {
 
   async function changePassword(e) {
     e.preventDefault()
-    if (pwForm.newPassword !== pwForm.confirm) {
+    if (pwForm.newPassword !== pwForm.confirmPassword) {
       setPwMsg({ type: "error", text: "New passwords do not match." }); return
     }
-    if (pwForm.newPassword.length < 8) {
-      setPwMsg({ type: "error", text: "Password must be at least 8 characters." }); return
+    if (pwForm.newPassword.length < 6) {
+      setPwMsg({ type: "error", text: "Password must be at least 6 characters." }); return
     }
     setPwSaving(true); setPwMsg(null)
     try {
       await api.post("/auth/change-password", {
         currentPassword: pwForm.currentPassword,
-        newPassword: pwForm.newPassword,
+        newPassword:     pwForm.newPassword,
+        confirmPassword: pwForm.confirmPassword,   // ← was missing
       })
       setPwMsg({ type: "success", text: "Password changed successfully." })
-      setPwForm({ currentPassword: "", newPassword: "", confirm: "" })
+      setPwForm({ currentPassword: "", newPassword: "", confirmPassword: "" })
     } catch (err) {
       setPwMsg({ type: "error", text: err.message })
     } finally { setPwSaving(false) }
@@ -65,7 +64,7 @@ export default function SettingsPage() {
     <div style={{ display: "flex", flexDirection: "column", gap: 24, maxWidth: 620 }}>
       <PageHeader title="Settings" subtitle="Manage your profile and account security." />
 
-      <Section title="Profile" subtitle="Update your display name">
+      <Section title="Profile" subtitle="Your account information">
         {loading ? <Skeleton /> : (
           <form onSubmit={saveProfile} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <Field label="Full name">
@@ -76,15 +75,20 @@ export default function SettingsPage() {
               />
             </Field>
             <Field label="Email address">
-              <input value={profile.email} disabled style={{ ...inputStyle, background: "#f7f8f4", color: "#9ca3af", cursor: "not-allowed" }} />
-              <span style={{ fontSize: 11, color: "#9ca3af", marginTop: 4, fontFamily: "'DM Mono', monospace" }}>Email cannot be changed. Contact your admin.</span>
+              <input value={profile.email} disabled
+                style={{ ...inputStyle, background: "#f7f8f4", color: "#9ca3af", cursor: "not-allowed" }} />
+              <span style={{ fontSize: 11, color: "#9ca3af", marginTop: 4, fontFamily: "'DM Mono', monospace" }}>
+                Email cannot be changed. Contact your admin.
+              </span>
             </Field>
             <Field label="Role">
-              <input value={profile.role} disabled style={{ ...inputStyle, background: "#f7f8f4", color: "#9ca3af", cursor: "not-allowed" }} />
+              <input value={profile.role} disabled
+                style={{ ...inputStyle, background: "#f7f8f4", color: "#9ca3af", cursor: "not-allowed" }} />
             </Field>
             {profile.branch && (
               <Field label="Branch">
-                <input value={profile.branch} disabled style={{ ...inputStyle, background: "#f7f8f4", color: "#9ca3af", cursor: "not-allowed" }} />
+                <input value={profile.branch} disabled
+                  style={{ ...inputStyle, background: "#f7f8f4", color: "#9ca3af", cursor: "not-allowed" }} />
               </Field>
             )}
             {msg && <Banner msg={msg} />}
@@ -97,22 +101,31 @@ export default function SettingsPage() {
         )}
       </Section>
 
-      <Section title="Change password" subtitle="FR-04 — passwords are stored as bcrypt hashes">
+      <Section title="Change Password" subtitle="Choose a strong password with at least 6 characters">
         <form onSubmit={changePassword} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Field label="Current password">
-            <input type="password" value={pwForm.currentPassword}
+            <input
+              type="password"
+              value={pwForm.currentPassword}
               onChange={e => setPwForm(p => ({ ...p, currentPassword: e.target.value }))}
-              style={inputStyle} required autoComplete="current-password" />
+              style={inputStyle} required autoComplete="current-password"
+            />
           </Field>
           <Field label="New password">
-            <input type="password" value={pwForm.newPassword}
+            <input
+              type="password"
+              value={pwForm.newPassword}
               onChange={e => setPwForm(p => ({ ...p, newPassword: e.target.value }))}
-              style={inputStyle} required autoComplete="new-password" />
+              style={inputStyle} required autoComplete="new-password"
+            />
           </Field>
           <Field label="Confirm new password">
-            <input type="password" value={pwForm.confirm}
-              onChange={e => setPwForm(p => ({ ...p, confirm: e.target.value }))}
-              style={inputStyle} required autoComplete="new-password" />
+            <input
+              type="password"
+              value={pwForm.confirmPassword}
+              onChange={e => setPwForm(p => ({ ...p, confirmPassword: e.target.value }))}
+              style={inputStyle} required autoComplete="new-password"
+            />
           </Field>
           {pwMsg && <Banner msg={pwMsg} />}
           <div>
@@ -141,7 +154,9 @@ function Section({ title, subtitle, children }) {
 function Field({ label, children }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <label style={{ fontSize: 12, fontWeight: 500, color: "#374151", fontFamily: "'Inter', sans-serif" }}>{label}</label>
+      <label style={{ fontSize: 12, fontWeight: 500, color: "#374151", fontFamily: "'Inter', sans-serif" }}>
+        {label}
+      </label>
       {children}
     </div>
   )
@@ -163,10 +178,18 @@ function Banner({ msg }) {
 }
 
 function Skeleton() {
-  return [1,2,3].map(i => (
+  return [1, 2, 3].map(i => (
     <div key={i} style={{ height: 38, background: "#f3f4f0", borderRadius: 6, marginBottom: 16 }} />
   ))
 }
 
-const inputStyle = { border: "1px solid #d1d5db", borderRadius: 6, padding: "9px 12px", fontSize: 13, fontFamily: "'Inter', sans-serif", outline: "none", color: "#1a1f0e", width: "100%", boxSizing: "border-box" }
-const btnPrimary = { background: "#1a1f0e", color: "#fff", border: "none", borderRadius: 6, padding: "9px 20px", fontSize: 13, cursor: "pointer", fontFamily: "'Inter', sans-serif", fontWeight: 500 }  
+const inputStyle = {
+  border: "1px solid #d1d5db", borderRadius: 6, padding: "9px 12px",
+  fontSize: 13, fontFamily: "'Inter', sans-serif", outline: "none",
+  color: "#1a1f0e", width: "100%", boxSizing: "border-box",
+}
+const btnPrimary = {
+  background: "#1a1f0e", color: "#fff", border: "none", borderRadius: 6,
+  padding: "9px 20px", fontSize: 13, cursor: "pointer",
+  fontFamily: "'Inter', sans-serif", fontWeight: 500,
+}

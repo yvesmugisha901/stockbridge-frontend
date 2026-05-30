@@ -1,24 +1,39 @@
 "use client"
 import { useState, useEffect } from "react"
-import PageHeader      from "@/components/ui/PageHeader"
-import AdminStatsGrid  from "@/components/dashboard/AdminStatsGrid"
-import QuickActions    from "@/components/dashboard/QuickActions"
-import RecentActivity  from "@/components/dashboard/RecentActivity"
-
-const API = process.env.NEXT_PUBLIC_API_URL
+import PageHeader     from "@/components/ui/PageHeader"
+import AdminStatsGrid from "@/components/dashboard/AdminStatsGrid"
+import QuickActions   from "@/components/dashboard/QuickActions"
+import RecentActivity from "@/components/dashboard/RecentActivity"
+import { api }        from "@/lib/api/client"
 
 const EMPTY_STATS = {
-  totalUsers: 0, activeBranches: 0, activeItems: 0,
-  systemStatus: "OK", totalTransfers: 0, pendingTransfers: 0,
-  newUsersThisMonth: 0, lowStockCount: 0,
+  totalUsers:        0,
+  activeBranches:    0,
+  activeItems:       0,
+  systemStatus:      "OK",
+  totalTransfers:    0,
+  pendingTransfers:  0,
+  newUsersThisMonth: 0,
+  lowStockCount:     0,
 }
 
-// inline until @/lib/auth/tokens.js is created
-function getToken() {
-  return document.cookie
-    .split("; ")
-    .find(r => r.startsWith("auth_token="))
-    ?.split("=")[1]
+function normaliseStats(raw) {
+  const flat = raw?.data?.stats ?? raw?.data ?? raw?.stats ?? raw ?? {}
+  return {
+    totalUsers:        flat.totalUsers        ?? flat.total_users          ?? flat.users     ?? 0,
+    activeBranches:    flat.activeBranches    ?? flat.active_branches      ?? flat.branches   ?? 0,
+    activeItems:       flat.activeItems       ?? flat.active_items         ?? flat.items      ?? 0,
+    systemStatus:      flat.systemStatus      ?? flat.system_status        ?? flat.status     ?? "OK",
+    totalTransfers:    flat.totalTransfers    ?? flat.total_transfers      ?? flat.transfers   ?? 0,
+    pendingTransfers:  flat.pendingTransfers  ?? flat.pending_transfers    ?? flat.pending     ?? 0,
+    newUsersThisMonth: flat.newUsersThisMonth ?? flat.new_users_this_month ?? flat.newUsers   ?? 0,
+    lowStockCount:     flat.lowStockCount     ?? flat.low_stock_count      ?? flat.lowStock    ?? 0,
+  }
+}
+
+function normaliseActivities(raw) {
+  const list = raw?.data?.activities ?? raw?.data ?? raw?.activities ?? raw ?? []
+  return Array.isArray(list) ? list : []
 }
 
 export default function AdminDashboard() {
@@ -35,25 +50,14 @@ export default function AdminDashboard() {
         setLoading(true)
         setError(null)
 
-        const headers = {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
-        }
-
-        const [statsRes, activityRes] = await Promise.all([
-          fetch(`${API}/admin/stats`,    { headers }),
-          fetch(`${API}/admin/activity`, { headers }),
+        const [statsData, activityData] = await Promise.all([
+          api.get("/admin/stats"),
+          api.get("/admin/activity"),
         ])
 
         if (!cancelled) {
-          if (statsRes.ok) {
-            const j = await statsRes.json()
-            setStats(j.data ?? j)
-          }
-          if (activityRes.ok) {
-            const j = await activityRes.json()
-            setActivities(j.data ?? j ?? [])
-          }
+          setStats(normaliseStats(statsData))
+          setActivities(normaliseActivities(activityData))
         }
       } catch (err) {
         if (!cancelled) setError(err.message)
@@ -76,10 +80,10 @@ export default function AdminDashboard() {
       {error && (
         <div style={{
           background: "#fef2f2", border: "1px solid #fecaca",
-          color: "#dc2626", padding: "10px 16px",
+          borderRadius: 6, color: "#dc2626", padding: "10px 16px",
           fontFamily: "'DM Mono', monospace", fontSize: 12,
         }}>
-          Failed to load dashboard data: {error}
+          {error}
         </div>
       )}
 

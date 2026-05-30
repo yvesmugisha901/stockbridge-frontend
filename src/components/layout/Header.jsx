@@ -13,15 +13,6 @@ function LogOutIcon() {
     </svg>
   )
 }
-function UserIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  )
-}
 function BellIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -32,11 +23,15 @@ function BellIcon() {
   )
 }
 
-export default function Header({ notifications = [] }) {
+export default function Header({ notifications = [], onMarkAllRead, onMarkRead }) {
   const { user, logout } = useAuthContext()
   const [bellOpen, setBellOpen] = useState(false)
   const bellRef = useRef(null)
   const unreadCount = notifications.filter(n => !n.read).length
+
+  // Resolve name — tries every field the JWT might use
+  const displayName = user?.fullName || user?.full_name || user?.name || user?.username || user?.sub || "—"
+  const initial     = displayName.charAt(0).toUpperCase()
 
   useEffect(() => {
     if (!bellOpen) return
@@ -107,7 +102,8 @@ export default function Header({ notifications = [] }) {
           <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 1000 }}>
             <NotificationDropdown
               notifications={notifications}
-              onMarkAllRead={() => { /* wire to your state/API */ }}
+              onMarkAllRead={() => { onMarkAllRead?.(); setBellOpen(false) }}
+              onMarkRead={onMarkRead}
               onClose={() => setBellOpen(false)}
             />
           </div>
@@ -117,16 +113,28 @@ export default function Header({ notifications = [] }) {
       {/* Divider */}
       <div style={{ width: 1, height: 20, background: "#dde0d4" }} />
 
-      {/* User info */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#6b7260" }}>
-        <UserIcon />
+      {/* Avatar + Name */}
+      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+        <span style={{
+          width: 30, height: 30, borderRadius: "50%",
+          background: "#e4f0df", color: "#3d7a2b",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 600,
+          flexShrink: 0,
+        }}>
+          {initial}
+        </span>
         <span style={{
           fontFamily: "'DM Mono', monospace",
           fontSize: 12,
           color: "#1a1f0e",
           letterSpacing: "0.02em",
+          maxWidth: 160,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
         }}>
-          {user?.email || user?.sub}
+          {displayName}
         </span>
       </div>
 
