@@ -13,7 +13,20 @@ export default function BranchFormModal({ open, branch, onClose, onSave }) {
   const isEdit = !!branch
 
   useEffect(() => {
-    setForm(branch ?? EMPTY)
+    if (open) {
+      if (branch) {
+        setForm({
+          name:     branch.name         ?? "",
+          code:     branch.code         ?? "",
+          location: branch.location     ?? "",
+          // API returns contactInfo; normalise to contact for internal form state
+          contact:  branch.contactInfo  ?? branch.contact ?? "",
+          active:   branch.active       ?? true,
+        })
+      } else {
+        setForm(EMPTY)
+      }
+    }
   }, [branch, open])
 
   if (!open) return null

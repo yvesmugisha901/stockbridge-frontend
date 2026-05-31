@@ -3,7 +3,9 @@ import { useState, useEffect } from "react"
 import PageHeader from "@/components/ui/PageHeader"
 import { getToken } from "@/lib/auth/tokens"
 
+// Fails loudly at dev time if the var is missing
 const API = process.env.NEXT_PUBLIC_API_URL
+if (!API) console.error("[AuditLog] NEXT_PUBLIC_API_URL is not set")
 
 export default function AuditLogPage() {
   const [logs,    setLogs]    = useState([])
@@ -18,10 +20,10 @@ export default function AuditLogPage() {
         const res = await fetch(`${API}/admin/audit-log?page=0&size=100`, {
           headers: { Authorization: `Bearer ${getToken()}` },
         })
-        if (!cancelled && res.ok) {
-          const j = await res.json()
-          setLogs(j.data?.content ?? j.content ?? j.data ?? j ?? [])
-        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const j = await res.json()
+        // Backend: ApiResponse<Page<AuditLogResponse>> → j.data.content
+        if (!cancelled) setLogs(j.data?.content ?? [])
       } catch (err) {
         if (!cancelled) setError(err.message)
       } finally {
@@ -30,7 +32,7 @@ export default function AuditLogPage() {
     }
     load()
     return () => { cancelled = true }
-  }, [])
+  }, [])  // ← runs once on mount only, this is correct
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -52,11 +54,14 @@ export default function AuditLogPage() {
               <tr><td colSpan={5} style={{ padding: 32, textAlign: "center", color: "#9ca3af" }}>No audit logs found</td></tr>
             ) : logs.map((log, i) => (
               <tr key={log.id ?? i} style={{ borderBottom: "1px solid #f3f4f0" }}>
-                <td style={{ padding: "10px 16px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" }}>{log.timestamp ? new Date(log.timestamp).toLocaleString() : "—"}</td>
-                <td style={{ padding: "10px 16px", color: "#6b7280", fontSize: 12 }}>{log.performedBy ?? log.user}</td>
+                <td style={{ padding: "10px 16px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" }}>
+                  {/* Backend DTO field is "timestamp" mapped from performedAt */}
+                  {log.timestamp ? new Date(log.timestamp).toLocaleString() : "—"}
+                </td>
+                <td style={{ padding: "10px 16px", color: "#6b7280", fontSize: 12 }}>{log.performedBy ?? "—"}</td>
                 <td style={{ padding: "10px 16px", color: "#1a1f0e", fontWeight: 500 }}>{log.action}</td>
                 <td style={{ padding: "10px 16px", color: "#6b7280" }}>{log.entityType}</td>
-                <td style={{ padding: "10px 16px", color: "#6b7280", fontSize: 12 }}>{log.details ?? log.description ?? "—"}</td>
+                <td style={{ padding: "10px 16px", color: "#6b7280", fontSize: 12 }}>{log.details ?? "—"}</td>
               </tr>
             ))}
           </tbody>

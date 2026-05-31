@@ -4,6 +4,7 @@ import PageHeader      from "@/components/ui/PageHeader"
 import BranchesTable   from "@/components/branches/BranchesTable"
 import BranchFormModal from "@/components/branches/BranchFormModal"
 import { getToken }    from "@/lib/auth/tokens"
+import toast           from "react-hot-toast"
 
 const API = process.env.NEXT_PUBLIC_API_URL
 
@@ -14,9 +15,8 @@ export default function BranchesPage() {
   const [modalOpen, setModal]    = useState(false)
   const [editing,   setEditing]  = useState(null)
 
-  // ─── fetch ──────────────────────────────────────────────────────────────────
+  // ─── fetch ───────────────────────────────────────────────────────────────────
   // GET /api/v1/branches → ApiResponse<List<BranchSummaryResponse>>
-  // .data is the array directly (no pagination)
   const loadBranches = useCallback(async () => {
     try {
       setLoading(true)
@@ -36,19 +36,16 @@ export default function BranchesPage() {
 
   useEffect(() => { loadBranches() }, [loadBranches])
 
-  // ─── modal helpers ──────────────────────────────────────────────────────────
+  // ─── modal helpers ────────────────────────────────────────────────────────────
   function openCreate() { setEditing(null); setModal(true) }
   function openEdit(b)  { setEditing(b);    setModal(true) }
 
-  // ─── save (create or update) ──────────────────────────────────────────────
-  // CreateBranchRequest / UpdateBranchRequest fields: name, code, location, contactInfo
+  // ─── save (create or update) ──────────────────────────────────────────────────
   async function handleSave(formData) {
     const isEdit = Boolean(editing)
     const url    = isEdit ? `${API}/branches/${editing.id}` : `${API}/branches`
     const method = isEdit ? "PUT" : "POST"
 
-    // BranchFormModal stores the contact field as `contact` internally.
-    // Map it to `contactInfo` before sending to the API.
     const payload = {
       name:        formData.name,
       code:        formData.code,
@@ -72,15 +69,24 @@ export default function BranchesPage() {
     loadBranches()
   }
 
-  // ─── toggle active ────────────────────────────────────────────────────────
+  // ─── suspend / activate ───────────────────────────────────────────────────────
   async function handleToggleActive(branch) {
-    const path = branch.active ? "deactivate" : "activate"
-    const res  = await fetch(`${API}/branches/${branch.id}/${path}`, {
-      method:  "PATCH",
-      headers: { Authorization: `Bearer ${getToken()}` },
-    })
-    if (!res.ok) return
-    loadBranches()
+    const action = branch.active ? "deactivate" : "activate"
+    const label  = branch.active ? "suspended" : "activated"
+    try {
+      const res = await fetch(`${API}/branches/${branch.id}/${action}`, {
+        method:  "PATCH",
+        headers: { Authorization: `Bearer ${getToken()}` },
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        throw new Error(j.message ?? `HTTP ${res.status}`)
+      }
+      toast.success(`Branch ${label}`)
+      loadBranches()
+    } catch (err) {
+      toast.error(err.message ?? `Failed to ${action} branch`)
+    }
   }
 
   const active   = branches.filter((b) => b.active).length
@@ -97,9 +103,9 @@ export default function BranchesPage() {
       {/* Summary pills */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         {[
-          { label: "Total",    value: branches.length, bg: "#f7f8f4", color: "#1a1f0e" },
-          { label: "Active",   value: active,           bg: "#f0f7ed", color: "#3d7a2b" },
-          { label: "Inactive", value: inactive,         bg: "#fef2f2", color: "#dc2626" },
+          { label: "Total",      value: branches.length, bg: "#f7f8f4", color: "#1a1f0e" },
+          { label: "Active",     value: active,           bg: "#f0f7ed", color: "#3d7a2b" },
+          { label: "Suspended",  value: inactive,         bg: "#fef2f2", color: "#dc2626" },
         ].map((p) => (
           <div key={p.label} style={{
             background: p.bg, padding: "8px 16px",

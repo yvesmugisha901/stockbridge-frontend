@@ -2,8 +2,10 @@
  * UserFormModal — create or edit a user
  * Props: open, user (null = create), branches [], onClose(), onSave(data)
  *
- * CreateUserRequest fields: username, email, password, fullName, role, branchId
- * UpdateUserRequest fields: username, email, fullName, role, branchId  (no password)
+ * CreateUserRequest fields: username (auto-generated), email, password, fullName, role, branchId
+ * UpdateUserRequest fields: username (auto-generated), email, fullName, role, branchId  (no password)
+ *
+ * Username is auto-derived from fullName: "Eve Mutoni" → "eve.mutoni"
  */
 "use client"
 import { useState, useEffect } from "react"
@@ -11,12 +13,20 @@ import { ROLES }               from "@/lib/utils/constants"
 import toast                   from "react-hot-toast"
 
 const EMPTY = {
-  username: "",
   fullName: "",
   email:    "",
   password: "",
   role:     "",
   branchId: "",
+}
+
+/** "Eve Mutoni Uwase" → "eve.mutoni.uwase" */
+function toUsername(fullName) {
+  return fullName
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ".")
+    .replace(/[^a-z0-9.]/g, "")
 }
 
 export default function UserFormModal({ open, user, branches = [], onClose, onSave }) {
@@ -31,10 +41,9 @@ export default function UserFormModal({ open, user, branches = [], onClose, onSa
     if (open) {
       if (user) {
         setForm({
-          username: user.username  ?? "",
           fullName: user.fullName  ?? "",
           email:    user.email     ?? "",
-          password: "",                    // never pre-fill password on edit
+          password: "",
           role:     user.role      ?? "",
           branchId: user.branchId != null ? String(user.branchId) : "",
         })
@@ -56,7 +65,6 @@ export default function UserFormModal({ open, user, branches = [], onClose, onSa
   // ─── client-side validation ─────────────────────────────────────────────────
   function validate() {
     const e = {}
-    if (!form.username.trim())  e.username = "Username is required"
     if (!form.fullName.trim())  e.fullName = "Full name is required"
     if (!form.email.trim())     e.email    = "Email is required"
     if (!isEdit && !form.password.trim()) e.password = "Password is required"
@@ -74,13 +82,12 @@ export default function UserFormModal({ open, user, branches = [], onClose, onSa
     setSaving(true)
     try {
       const payload = {
-        username: form.username.trim(),
+        username: toUsername(form.fullName),   // auto-generated, hidden from UI
         fullName: form.fullName.trim(),
         email:    form.email.trim(),
         role:     form.role,
         branchId: form.branchId ? Number(form.branchId) : null,
       }
-      // Password only on create
       if (!isEdit) payload.password = form.password
 
       await onSave(payload)
@@ -91,6 +98,9 @@ export default function UserFormModal({ open, user, branches = [], onClose, onSa
       setSaving(false)
     }
   }
+
+  // ─── username preview (shown as a subtle hint below Full Name) ──────────────
+  const usernamePreview = form.fullName.trim() ? toUsername(form.fullName) : null
 
   return (
     <div style={overlay}>
@@ -103,16 +113,6 @@ export default function UserFormModal({ open, user, branches = [], onClose, onSa
 
         <form onSubmit={handleSubmit} style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 16 }}>
 
-          {/* Username */}
-          <Field label="Username" error={errors.username}>
-            <input
-              style={input(errors.username)}
-              value={form.username}
-              onChange={(e) => set("username", e.target.value)}
-              autoComplete="off"
-            />
-          </Field>
-
           {/* Full Name */}
           <Field label="Full Name" error={errors.fullName}>
             <input
@@ -120,6 +120,16 @@ export default function UserFormModal({ open, user, branches = [], onClose, onSa
               value={form.fullName}
               onChange={(e) => set("fullName", e.target.value)}
             />
+            {usernamePreview && (
+              <span style={{
+                fontFamily: "'DM Mono', monospace",
+                fontSize: 10,
+                color: "#9ba590",
+                marginTop: 3,
+              }}>
+                username: {usernamePreview}
+              </span>
+            )}
           </Field>
 
           {/* Email */}

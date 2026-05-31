@@ -41,7 +41,8 @@ export default function BranchesTable({ branches = [], onEdit }) {
               </span>
             </SBCell>
             <SBCell muted>{b.location}</SBCell>
-            <SBCell muted>{b.contact ?? "—"}</SBCell>
+            {/* API returns contactInfo — fall back to contact for safety */}
+            <SBCell muted>{b.contactInfo ?? b.contact ?? "—"}</SBCell>
             <SBCell muted>{b.itemCount ?? "—"}</SBCell>
             <SBCell>
               <Badge
