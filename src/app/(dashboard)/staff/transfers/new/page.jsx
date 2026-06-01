@@ -134,7 +134,7 @@ export default function NewTransferPage() {
       })
       if (res?.success) {
         toast.success("Transfer request submitted")
-        router.push("/dashboard/staff/transfers")
+        router.push("/staff/transfers")
       } else {
         toast.error(res?.message || "Submission failed")
       }

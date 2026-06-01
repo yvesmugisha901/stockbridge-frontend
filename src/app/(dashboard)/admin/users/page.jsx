@@ -4,12 +4,13 @@ import PageHeader     from "@/components/ui/PageHeader"
 import UsersTable     from "@/components/users/UsersTable"
 import UserFormModal  from "@/components/users/UserFormModal"
 import { getToken }   from "@/lib/auth/tokens"
+import toast          from "react-hot-toast"
 
 const API = process.env.NEXT_PUBLIC_API_URL
 
 export default function UsersPage() {
   const [users,      setUsers]      = useState([])
-  const [page,       setPage]       = useState(0)         // 0-indexed (Spring Pageable)
+  const [page,       setPage]       = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [loading,    setLoading]    = useState(true)
   const [error,      setError]      = useState(null)
@@ -17,7 +18,7 @@ export default function UsersPage() {
   const [editing,    setEditing]    = useState(null)
   const [branches,   setBranches]   = useState([])
 
-  // ─── fetch users ────────────────────────────────────────────────────────────
+  // ─── fetch users ─────────────────────────────────────────────────────────────
   const loadUsers = useCallback(async (pageNum = 0) => {
     try {
       setLoading(true)
@@ -27,9 +28,7 @@ export default function UsersPage() {
         { headers: { Authorization: `Bearer ${getToken()}` } }
       )
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const j = await res.json()
-      // GET /users → ApiResponse<Page<UserResponse>>
-      // .data is the Page object; .data.content is the array
+      const j        = await res.json()
       const pageData = j.data
       setUsers(pageData.content ?? [])
       setTotalPages(pageData.totalPages ?? 1)
@@ -41,28 +40,28 @@ export default function UsersPage() {
     }
   }, [])
 
-  // ─── fetch branches for the modal dropdown ──────────────────────────────────
+  // ─── fetch branches ───────────────────────────────────────────────────────────
   useEffect(() => {
     async function loadBranches() {
       try {
         const res = await fetch(`${API}/branches`, {
-          headers: { Authorization: `Bearer ${getToken()}` }
+          headers: { Authorization: `Bearer ${getToken()}` },
         })
         if (!res.ok) return
         const j = await res.json()
         setBranches(j.data ?? [])
-      } catch { /* silent — branch dropdown degrades gracefully */ }
+      } catch { /* silent */ }
     }
     loadBranches()
   }, [])
 
   useEffect(() => { loadUsers(0) }, [loadUsers])
 
-  // ─── modal helpers ──────────────────────────────────────────────────────────
+  // ─── modal helpers ────────────────────────────────────────────────────────────
   function openCreate() { setEditing(null); setModal(true) }
   function openEdit(u)  { setEditing(u);    setModal(true) }
 
-  // ─── save (create or update) ─────────────────────────────────────────────────
+  // ─── save (create or update) ──────────────────────────────────────────────────
   async function handleSave(formData) {
     const isEdit = Boolean(editing)
     const url    = isEdit ? `${API}/users/${editing.id}` : `${API}/users`
@@ -72,7 +71,7 @@ export default function UsersPage() {
       method,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${getToken()}`,
+        Authorization:  `Bearer ${getToken()}`,
       },
       body: JSON.stringify(formData),
     })
@@ -84,14 +83,33 @@ export default function UsersPage() {
     loadUsers(page)
   }
 
-  // ─── toggle active / deactivate ──────────────────────────────────────────────
-  async function handleToggleActive(user) {
-    const path  = user.active ? "deactivate" : "activate"
-    const res   = await fetch(`${API}/users/${user.id}/${path}`, {
-      method: "PATCH",
+  // ─── delete user ──────────────────────────────────────────────────────────────
+  async function handleDelete(userId) {
+    const res = await fetch(`${API}/users/${userId}`, {
+      method:  "DELETE",
       headers: { Authorization: `Bearer ${getToken()}` },
     })
-    if (!res.ok) return
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}))
+      throw new Error(j.message ?? `HTTP ${res.status}`)
+    }
+    setModal(false)
+    loadUsers(page)
+  }
+
+  // ─── toggle active / deactivate ───────────────────────────────────────────────
+  // ✅ renamed from handleToggleActive → now matches UsersTable's onDeactivate prop
+  async function handleDeactivate(user) {
+    const path = user.active ? "deactivate" : "activate"
+    const res  = await fetch(`${API}/users/${user.id}/${path}`, {
+      method:  "PATCH",
+      headers: { Authorization: `Bearer ${getToken()}` },
+    })
+    if (!res.ok) {
+      toast.error(`Failed to ${path} user`)
+      return
+    }
+    toast.success(`User ${path}d`)
     loadUsers(page)
   }
 
@@ -141,7 +159,7 @@ export default function UsersPage() {
         users={users}
         loading={loading}
         onEdit={openEdit}
-        onToggleActive={handleToggleActive}
+        onDeactivate={handleDeactivate} 
       />
 
       {/* Pagination */}
@@ -176,6 +194,7 @@ export default function UsersPage() {
         branches={branches}
         onClose={() => setModal(false)}
         onSave={handleSave}
+        onDelete={handleDelete}  
       />
     </div>
   )
@@ -183,13 +202,13 @@ export default function UsersPage() {
 
 function paginationBtn(disabled) {
   return {
-    background:  disabled ? "#f7f8f4" : "#fff",
-    color:       disabled ? "#b0b5a0" : "#1a1f0e",
-    border:      "1px solid #dde0d4",
-    padding:     "6px 14px",
-    cursor:      disabled ? "default" : "pointer",
-    fontFamily:  "'DM Mono', monospace",
-    fontSize:    11,
+    background:    disabled ? "#f7f8f4" : "#fff",
+    color:         disabled ? "#b0b5a0" : "#1a1f0e",
+    border:        "1px solid #dde0d4",
+    padding:       "6px 14px",
+    cursor:        disabled ? "default" : "pointer",
+    fontFamily:    "'DM Mono', monospace",
+    fontSize:      11,
     letterSpacing: "0.06em",
   }
 }

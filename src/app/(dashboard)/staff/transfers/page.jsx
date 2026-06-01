@@ -18,9 +18,13 @@ const STATUS_STYLE = {
 }
 
 const STATUS_LABEL = {
-  PENDING: "Pending", MANAGER_APPROVED: "Manager Approved",
-  HO_APPROVED: "HO Approved", IN_TRANSIT: "In Transit",
-  COMPLETED: "Completed", REJECTED: "Rejected", CANCELLED: "Cancelled",
+  PENDING: "Pending",
+  MANAGER_APPROVED: "Manager Approved",
+  HO_APPROVED: "HO Approved",
+  IN_TRANSIT: "In Transit",
+  COMPLETED: "Completed",
+  REJECTED: "Rejected",
+  CANCELLED: "Cancelled",
 }
 
 export default function StaffTransfersPage() {
@@ -36,7 +40,6 @@ export default function StaffTransfersPage() {
   async function fetchTransfers() {
     try {
       setLoading(true)
-      // GET /api/v1/transfers/my — returns ApiResponse<Page<TransferResponse>>
       const res = await api.get("/transfers/my?size=100")
       if (res?.success) setTransfers(res.data.content || [])
       else toast.error("Failed to load transfers")
@@ -51,7 +54,6 @@ export default function StaffTransfersPage() {
     if (!confirm("Cancel this transfer request?")) return
     try {
       setCancelling(id)
-      // PATCH /api/v1/transfers/{id}/cancel — returns ApiResponse<TransferResponse>
       const res = await api.patch(`/transfers/${id}/cancel`)
       if (res?.success) {
         toast.success("Transfer cancelled")
@@ -68,10 +70,8 @@ export default function StaffTransfersPage() {
     }
   }
 
-  // Client-side filtering — status filter hits the already-fetched page
   const filtered = transfers.filter(t => {
     const matchStatus = statusFilter === "ALL" || t.status === statusFilter
-    // TransferResponse uses requestedAt (not createdAt)
     const matchFrom   = !dateFrom || new Date(t.requestedAt) >= new Date(dateFrom)
     const matchTo     = !dateTo   || new Date(t.requestedAt) <= new Date(dateTo + "T23:59:59")
     return matchStatus && matchFrom && matchTo
@@ -80,15 +80,24 @@ export default function StaffTransfersPage() {
   const hasFilters = statusFilter !== "ALL" || dateFrom || dateTo
 
   const labelStyle = {
-    fontFamily: "'DM Mono', monospace", fontSize: 9,
-    textTransform: "uppercase", letterSpacing: "0.12em", color: "#9ca3af",
-    marginBottom: 6, display: "block",
+    fontFamily: "'DM Mono', monospace",
+    fontSize: 9,
+    textTransform: "uppercase",
+    letterSpacing: "0.12em",
+    color: "#9ca3af",
+    marginBottom: 6,
+    display: "block",
   }
 
   const inputStyle = {
-    border: "1px solid #dde0d4", background: "#f7f8f4",
-    padding: "8px 12px", fontSize: 13, fontFamily: "'Inter', sans-serif",
-    color: "#1a1f0e", outline: "none", minWidth: 140,
+    border: "1px solid #dde0d4",
+    background: "#f7f8f4",
+    padding: "8px 12px",
+    fontSize: 13,
+    fontFamily: "'Inter', sans-serif",
+    color: "#1a1f0e",
+    outline: "none",
+    minWidth: 140,
   }
 
   return (
@@ -99,22 +108,30 @@ export default function StaffTransfersPage() {
           title="My Transfer Requests"
           subtitle="Track and manage your stock transfer requests."
         />
-        <Link href="/dashboard/staff/transfers/new" style={{
-          background: "#3d7a2b", color: "#fff",
-          padding: "9px 18px", fontSize: 13,
-          fontFamily: "'Inter', sans-serif", fontWeight: 500,
-          textDecoration: "none", display: "inline-block",
-          whiteSpace: "nowrap", alignSelf: "center",
+        <Link href="/staff/transfers/new" style={{
+          background: "#3d7a2b",
+          color: "#fff",
+          padding: "9px 18px",
+          fontSize: 13,
+          fontFamily: "'Inter', sans-serif",
+          fontWeight: 500,
+          textDecoration: "none",
+          display: "inline-block",
+          whiteSpace: "nowrap",
+          alignSelf: "center",
         }}>
           + New Request
         </Link>
       </div>
 
-      {/* ── Filters ── */}
       <div style={{
-        background: "#fff", border: "1px solid #dde0d4",
-        padding: "16px 24px", display: "flex", flexWrap: "wrap",
-        alignItems: "flex-end", gap: 20,
+        background: "#fff",
+        border: "1px solid #dde0d4",
+        padding: "16px 24px",
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "flex-end",
+        gap: 20,
       }}>
         <div>
           <span style={labelStyle}>Status</span>
@@ -149,7 +166,6 @@ export default function StaffTransfersPage() {
         </span>
       </div>
 
-      {/* ── Table ── */}
       <div style={{ background: "#fff", border: "1px solid #dde0d4", overflow: "hidden" }}>
         {loading ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 0" }}>
@@ -165,10 +181,14 @@ export default function StaffTransfersPage() {
               <tr style={{ background: "#f7f8f4", borderBottom: "1px solid #e8ebe3" }}>
                 {["Request ID", "Item", "From", "To", "Qty", "Status", "Date", "Action"].map(h => (
                   <th key={h} style={{
-                    textAlign: "left", padding: "10px 20px",
-                    fontFamily: "'DM Mono', monospace", fontSize: 10,
-                    textTransform: "uppercase", letterSpacing: "0.1em",
-                    color: "#9ca3af", fontWeight: 500,
+                    textAlign: "left",
+                    padding: "10px 20px",
+                    fontFamily: "'DM Mono', monospace",
+                    fontSize: 10,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.1em",
+                    color: "#9ca3af",
+                    fontWeight: 500,
                   }}>{h}</th>
                 ))}
               </tr>
@@ -182,7 +202,6 @@ export default function StaffTransfersPage() {
                 </tr>
               ) : filtered.map((t, idx) => (
                 <tr key={t.id} style={{ borderBottom: idx < filtered.length - 1 ? "1px solid #f0f1ec" : "none" }}>
-                  {/* TransferResponse has no referenceNumber — use id */}
                   <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>
                     #{t.id}
                   </td>
@@ -201,15 +220,17 @@ export default function StaffTransfersPage() {
                   <td style={{ padding: "12px 20px" }}>
                     <span style={{
                       ...(STATUS_STYLE[t.status] ?? { background: "#f3f4f6", color: "#6b7280" }),
-                      fontFamily: "'DM Mono', monospace", fontSize: 10,
-                      fontWeight: 600, padding: "2px 8px", borderRadius: 999,
+                      fontFamily: "'DM Mono', monospace",
+                      fontSize: 10,
+                      fontWeight: 600,
+                      padding: "2px 8px",
+                      borderRadius: 999,
                     }}>
                       {STATUS_LABEL[t.status] ?? t.status}
                     </span>
                   </td>
-                  {/* requestedAt is the correct field — TransferResponse has no createdAt */}
                   <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af" }}>
-                    {t.requestedAt ? new Date(t.requestedAt).toLocaleDateString() : "—"}
+                    {t.requestedAt ? new Date(t.requestedAt).toLocaleDateString() : "-"}
                   </td>
                   <td style={{ padding: "12px 20px" }}>
                     {t.status === "PENDING" ? (
@@ -217,16 +238,20 @@ export default function StaffTransfersPage() {
                         onClick={() => handleCancel(t.id)}
                         disabled={cancelling === t.id}
                         style={{
-                          background: "none", border: "none", cursor: "pointer",
-                          fontSize: 12, color: "#dc2626",
-                          fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          fontSize: 12,
+                          color: "#dc2626",
+                          fontFamily: "'Inter', sans-serif",
+                          fontWeight: 500,
                           opacity: cancelling === t.id ? 0.4 : 1,
                         }}
                       >
                         {cancelling === t.id ? "Cancelling..." : "Cancel"}
                       </button>
                     ) : (
-                      <span style={{ color: "#d1d5db", fontSize: 12 }}>—</span>
+                      <span style={{ color: "#d1d5db", fontSize: 12 }}>-</span>
                     )}
                   </td>
                 </tr>
