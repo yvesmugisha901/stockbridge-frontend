@@ -4,8 +4,6 @@ import { getUser, isAuthenticated, removeToken } from "@/lib/auth/session"
 
 const AuthContext = createContext(null)
 
-// JWT stores role as "ROLE_ADMIN" but the app uses "ADMIN" everywhere.
-// This strips the prefix so user.role always matches ROLES.* constants.
 function normalizeUser(raw) {
   if (!raw) return null
   return {
@@ -14,18 +12,28 @@ function normalizeUser(raw) {
   }
 }
 
+// Read user from token synchronously so it's available on the very first render.
+// This prevents branchName/fullName from being undefined before useEffect fires.
+function getInitialUser() {
+  if (typeof window === "undefined") return null  // SSR guard
+  if (!isAuthenticated()) return null
+  return normalizeUser(getUser())
+}
+
 export function AuthProvider({ children }) {
-  const [user, setUserRaw] = useState(null)
+  const [user, setUserRaw] = useState(getInitialUser)  // ← runs once synchronously
   const [loading, setLoading] = useState(true)
 
-  // Wrap setUser so anything stored via setUser is also normalized
   function setUser(raw) {
     setUserRaw(normalizeUser(raw))
   }
 
   useEffect(() => {
+    // Re-read on mount in case the cookie changed since SSR
     if (isAuthenticated()) {
-      setUser(getUser())   // getUser() decodes JWT → may have "ROLE_ADMIN", gets normalized here
+      setUser(getUser())
+    } else {
+      setUserRaw(null)
     }
     setLoading(false)
   }, [])

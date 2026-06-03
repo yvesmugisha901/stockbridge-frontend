@@ -10,39 +10,34 @@ export default function NewTransferPage() {
   const router = useRouter()
   const { user } = useAuthContext()
 
-  const [branches, setBranches]       = useState([])
-  const [items, setItems]             = useState([])
-  const [stockInfo, setStockInfo]     = useState(null)   // StockLevelResponse
+  const [branches, setBranches]         = useState([])
+  const [items, setItems]               = useState([])
+  const [stockInfo, setStockInfo]       = useState(null)
   const [stockLoading, setStockLoading] = useState(false)
-  const [loadingDeps, setLoadingDeps] = useState(true)
-  const [submitting, setSubmitting]   = useState(false)
+  const [loadingDeps, setLoadingDeps]   = useState(true)
+  const [submitting, setSubmitting]     = useState(false)
 
   const [form, setForm] = useState({
-    sourceBranchId: "",
+    sourceBranchId:      "",
     destinationBranchId: "",
-    itemId: "",
-    quantity: "",
-    justification: "",
+    itemId:              "",
+    quantity:            "",
+    justification:       "",
   })
 
-  // ── Load branches + items in parallel ───────────────────────────────────────
   useEffect(() => {
     async function load() {
       try {
         setLoadingDeps(true)
         const [bRes, iRes] = await Promise.all([
-          api.get("/branches"),          // → ApiResponse<List<BranchSummaryResponse>>
-          api.get("/items?size=200"),    // → ApiResponse<Page<ItemResponse>> or List
+          api.get("/branches"),
+          api.get("/items?size=200"),
         ])
-
         if (bRes?.success) {
-          // GET /api/v1/branches returns List (not Page) — data is the array directly
           const list = Array.isArray(bRes.data) ? bRes.data : (bRes.data?.content ?? [])
-          setBranches(list.filter(b => b.active)) // only active branches in dropdown
+          setBranches(list.filter(b => b.active))
         }
-
         if (iRes?.success) {
-          // Guard for both Page and List shapes
           const list = Array.isArray(iRes.data) ? iRes.data : (iRes.data?.content ?? [])
           setItems(list.filter(i => i.active))
         }
@@ -55,14 +50,12 @@ export default function NewTransferPage() {
     load()
   }, [])
 
-  // ── Pre-fill source branch from auth context ─────────────────────────────────
   useEffect(() => {
     if (user?.branchId) {
-      setForm(f => ({ ...f, sourceBranchId: String(user.branchId) }))
+      setForm(f => ({ ...f, destinationBranchId: String(user.branchId) }))
     }
   }, [user])
 
-  // ── Check available stock whenever item or source branch changes ─────────────
   useEffect(() => {
     async function checkStock() {
       if (!form.itemId || !form.sourceBranchId) {
@@ -71,12 +64,11 @@ export default function NewTransferPage() {
       }
       try {
         setStockLoading(true)
-        // GET /api/v1/stock?branchId=X&itemId=Y → ApiResponse<Page<StockLevelResponse>>
         const res = await api.get(
-          `/stock?branchId=${form.sourceBranchId}&itemId=${form.itemId}`
+          `/stock/${form.sourceBranchId}/${form.itemId}`
         )
-        if (res?.success && res.data?.content?.length > 0) {
-          setStockInfo(res.data.content[0])
+        if (res?.success && res.data) {
+          setStockInfo(res.data)
         } else {
           setStockInfo(null)
         }
@@ -89,10 +81,6 @@ export default function NewTransferPage() {
     checkStock()
   }, [form.itemId, form.sourceBranchId])
 
-  function set(key, val) { setForm(f => ({ ...f, [key]: val })) }
-
-  // ── Derived validation ───────────────────────────────────────────────────────
-  // Available = on hand minus reserved
   const availableQty = stockInfo
     ? stockInfo.quantityOnHand - (stockInfo.reservedQuantity ?? 0)
     : null
@@ -102,29 +90,32 @@ export default function NewTransferPage() {
     && Number(form.quantity) > availableQty
 
   const sameBranch = Boolean(
-    form.destinationBranchId && form.destinationBranchId === form.sourceBranchId
+    form.sourceBranchId && form.sourceBranchId === form.destinationBranchId
   )
 
   const canSubmit = !submitting
     && !qtyExceeds
     && !sameBranch
+    && !!form.sourceBranchId
     && availableQty !== 0
-    && form.destinationBranchId
-    && form.itemId
-    && form.quantity
+    && !!form.itemId
+    && !!form.quantity
+    && Number(form.quantity) > 0
     && form.justification.trim().length > 0
 
-  // ── Submit ───────────────────────────────────────────────────────────────────
   async function handleSubmit(e) {
     e.preventDefault()
-    if (qtyExceeds) { toast.error("Quantity exceeds available stock"); return }
-    if (sameBranch) { toast.error("Source and destination cannot be the same"); return }
+    if (!form.destinationBranchId || Number(form.destinationBranchId) === 0) {
+      toast.error("Your branch could not be detected. Please refresh.")
+      return
+    }
+    if (!form.sourceBranchId) { toast.error("Please select a source branch"); return }
+    if (qtyExceeds)           { toast.error("Quantity exceeds available stock at source branch"); return }
+    if (sameBranch)           { toast.error("Source and destination cannot be the same branch"); return }
     if (!form.justification.trim()) { toast.error("Justification is required"); return }
 
     try {
       setSubmitting(true)
-      // POST /api/v1/transfers — CreateTransferRequest
-      // Fields: sourceBranchId, destinationBranchId, itemId, quantity, justification
       const res = await api.post("/transfers", {
         sourceBranchId:      Number(form.sourceBranchId),
         destinationBranchId: Number(form.destinationBranchId),
@@ -145,20 +136,17 @@ export default function NewTransferPage() {
     }
   }
 
-  // ── Styles ───────────────────────────────────────────────────────────────────
   const labelStyle = {
     fontFamily: "'DM Mono', monospace", fontSize: 9,
     textTransform: "uppercase", letterSpacing: "0.12em",
     color: "#9ca3af", marginBottom: 6, display: "block",
   }
-
   const inputStyle = {
     width: "100%", border: "1px solid #dde0d4", background: "#f7f8f4",
     padding: "10px 14px", fontSize: 13, fontFamily: "'Inter', sans-serif",
     color: "#1a1f0e", outline: "none", boxSizing: "border-box",
   }
 
-  // ── Loading state ────────────────────────────────────────────────────────────
   if (loadingDeps) return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "80px 0" }}>
       <div style={{
@@ -178,57 +166,41 @@ export default function NewTransferPage() {
 
       <PageHeader
         title="New Transfer Request"
-        subtitle="Request stock to be transferred from your branch to another location."
+        subtitle="Request stock from another branch to be sent to your location."
       />
 
-      <div style={{
-        background: "#fff", border: "1px solid #dde0d4",
-        padding: 28, display: "flex", flexDirection: "column", gap: 20,
-      }}>
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          background: "#fff", border: "1px solid #dde0d4",
+          padding: 28, display: "flex", flexDirection: "column", gap: 20,
+        }}
+      >
 
-        {/* ── Source branch — locked to user's branch ── */}
-        <div>
-          <span style={labelStyle}>Source Branch</span>
-          <div style={{
-            ...inputStyle,
-            color: "#9ca3af", cursor: "not-allowed",
-            background: "#f0f1ec", display: "flex", alignItems: "center", gap: 8,
-          }}>
-            <span>
-              {branches.find(b => String(b.id) === form.sourceBranchId)?.name
-                ?? user?.branchName
-                ?? "Your branch"}
-            </span>
-            <span style={{ fontSize: 11, color: "#c4c9bb" }}>(auto-assigned)</span>
-          </div>
-        </div>
-
-        {/* ── Destination branch ── */}
+        {/* ── Source branch ── */}
         <div>
           <span style={labelStyle}>
-            Destination Branch <span style={{ color: "#dc2626" }}>*</span>
+            Request Stock From <span style={{ color: "#dc2626" }}>*</span>
           </span>
           <select
             required
-            value={form.destinationBranchId}
-            onChange={e => set("destinationBranchId", e.target.value)}
+            value={form.sourceBranchId}
+            onChange={e => {
+              const val = e.target.value
+              setForm(f => ({ ...f, sourceBranchId: val, itemId: "", quantity: "" }))
+              setStockInfo(null)
+            }}
             style={inputStyle}
           >
-            <option value="">Select destination branch...</option>
-            {/* BranchSummaryResponse: id, name, code — exclude own branch */}
+            <option value="">Select source branch...</option>
             {branches
-              .filter(b => String(b.id) !== form.sourceBranchId)
+              .filter(b => String(b.id) !== form.destinationBranchId)
               .map(b => (
                 <option key={b.id} value={b.id}>
                   {b.name}{b.code ? ` — ${b.code}` : ""}
                 </option>
               ))}
           </select>
-          {sameBranch && (
-            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#dc2626", marginTop: 4 }}>
-              Source and destination cannot be the same branch.
-            </p>
-          )}
         </div>
 
         {/* ── Item ── */}
@@ -239,11 +211,13 @@ export default function NewTransferPage() {
           <select
             required
             value={form.itemId}
-            onChange={e => set("itemId", e.target.value)}
+            onChange={e => setForm(f => ({ ...f, itemId: e.target.value }))}
             style={inputStyle}
+            disabled={!form.sourceBranchId}
           >
-            <option value="">Select item...</option>
-            {/* ItemResponse: id, name, code, unitOfMeasure */}
+            <option value="">
+              {form.sourceBranchId ? "Select item..." : "Select a source branch first..."}
+            </option>
             {items.map(item => (
               <option key={item.id} value={item.id}>
                 {item.name}{item.code ? ` (${item.code})` : ""}
@@ -251,8 +225,7 @@ export default function NewTransferPage() {
             ))}
           </select>
 
-          {/* ── Stock availability pill ── */}
-          {form.itemId && (
+          {form.itemId && form.sourceBranchId && (
             <div style={{
               marginTop: 8, padding: "8px 12px", fontSize: 12,
               fontFamily: "'DM Mono', monospace",
@@ -265,14 +238,12 @@ export default function NewTransferPage() {
                 : { background: "#f0f7ed", border: "1px solid #e1eedb", color: "#3d7a2b" }),
             }}>
               {stockLoading
-                ? "Checking availability..."
+                ? "Checking source branch availability..."
                 : stockInfo === null
-                // Item exists in catalogue but no stock record at this branch
-                ? "⚠ This item has no stock record at your branch."
+                ? "⚠ No stock record for this item at the selected source branch."
                 : availableQty === 0
-                ? "⚠ No available stock at your branch for this item."
-                // unitOfMeasure comes from StockLevelResponse (no field) — use ItemResponse instead
-                : `✓ Available: ${availableQty} ${
+                ? "⚠ Source branch has no available stock for this item."
+                : `✓ Available at source: ${availableQty} ${
                     items.find(i => String(i.id) === form.itemId)?.unitOfMeasure ?? "units"
                   }`
               }
@@ -292,7 +263,8 @@ export default function NewTransferPage() {
             max={availableQty ?? undefined}
             value={form.quantity}
             placeholder="Enter quantity..."
-            onChange={e => set("quantity", e.target.value)}
+            onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))}
+            disabled={!form.itemId || !form.sourceBranchId}
             style={{
               ...inputStyle,
               ...(qtyExceeds
@@ -302,7 +274,7 @@ export default function NewTransferPage() {
           />
           {qtyExceeds && (
             <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#dc2626", marginTop: 4 }}>
-              Exceeds available stock ({availableQty} available).
+              Exceeds available stock at source branch ({availableQty} available).
             </p>
           )}
         </div>
@@ -317,8 +289,8 @@ export default function NewTransferPage() {
             rows={4}
             maxLength={500}
             value={form.justification}
-            placeholder="Explain why this transfer is needed..."
-            onChange={e => set("justification", e.target.value)}
+            placeholder="Explain why your branch needs this stock..."
+            onChange={e => setForm(f => ({ ...f, justification: e.target.value }))}
             style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
           />
           <div style={{
@@ -334,7 +306,7 @@ export default function NewTransferPage() {
         {/* ── Actions ── */}
         <div style={{ display: "flex", gap: 12, paddingTop: 4 }}>
           <button
-            onClick={handleSubmit}
+            type="submit"
             disabled={!canSubmit}
             style={{
               background: canSubmit ? "#3d7a2b" : "#9ca3af",
@@ -359,7 +331,7 @@ export default function NewTransferPage() {
           </button>
         </div>
 
-      </div>
+      </form>
     </div>
   )
 }

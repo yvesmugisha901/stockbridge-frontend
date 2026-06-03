@@ -46,11 +46,19 @@ function Badge({ label, color }) {
 }
 
 // ── Detail Drawer ──────────────────────────────────────────────────────────────
-// transfer: TransferResponse
-function DetailDrawer({ transfer, onClose, onApprove, onReject, submitting }) {
+function DetailDrawer({ transfer, defaultAction, onClose, onApprove, onReject, submitting }) {
   const [comment, setComment] = useState("")
 
   useEffect(() => { setComment("") }, [transfer])
+
+  // Auto-focus textarea when opened for rejection
+  useEffect(() => {
+    if (defaultAction === "reject") {
+      setTimeout(() => {
+        document.getElementById("ho-comment-textarea")?.focus()
+      }, 80)
+    }
+  }, [defaultAction, transfer])
 
   if (!transfer) return null
 
@@ -65,7 +73,6 @@ function DetailDrawer({ transfer, onClose, onApprove, onReject, submitting }) {
             <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#3d7a2b", fontWeight: 600 }}>
               #{transfer.id}
             </span>
-            {/* TransferResponse.itemName */}
             <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 16, fontWeight: 600, color: "#1a1f0e", margin: "4px 0 0" }}>
               {transfer.itemName}
             </p>
@@ -79,7 +86,6 @@ function DetailDrawer({ transfer, onClose, onApprove, onReject, submitting }) {
         <div style={{ padding: "24px", flex: 1, display: "flex", flexDirection: "column", gap: 20 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {[
-              // TransferResponse field name → display label
               ["Item Code",     transfer.itemCode],
               ["From Branch",   transfer.sourceBranchName],
               ["To Branch",     transfer.destinationBranchName],
@@ -100,7 +106,6 @@ function DetailDrawer({ transfer, onClose, onApprove, onReject, submitting }) {
             ))}
           </div>
 
-          {/* TransferResponse.justification */}
           {transfer.justification && (
             <div style={{ background: "#f7f8f4", border: "1px solid #dde0d4", padding: "14px 16px" }}>
               <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.14em", color: "#9ca3af", margin: "0 0 8px" }}>
@@ -112,7 +117,6 @@ function DetailDrawer({ transfer, onClose, onApprove, onReject, submitting }) {
             </div>
           )}
 
-          {/* TransferResponse.managerComments — set by Branch Manager at level 1 */}
           {transfer.managerComments && (
             <div style={{ background: "#f0f7ed", border: "1px solid #c6dfc0", padding: "14px 16px" }}>
               <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.14em", color: "#3d7a2b", margin: "0 0 8px" }}>
@@ -124,19 +128,20 @@ function DetailDrawer({ transfer, onClose, onApprove, onReject, submitting }) {
             </div>
           )}
 
-          {/* HO comment — sent as ApprovalDecisionRequest.comments */}
+          {/* Comment field — label reflects whether action was pre-selected */}
           <div>
             <label style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: "#6b7260", marginBottom: 8 }}>
-              Your Comment (required on rejection)
+              Your Comment {defaultAction === "reject" ? <span style={{ color: "#dc2626" }}>*required</span> : "(required on rejection)"}
             </label>
             <textarea
+              id="ho-comment-textarea"
               rows={3}
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder="Add a comment..."
-              style={{ width: "100%", boxSizing: "border-box", fontFamily: "'Inter', sans-serif", fontSize: 13, background: "#f7f8f4", border: "1px solid #dde0d4", padding: "10px 14px", color: "#1a1f0e", outline: "none", resize: "vertical", lineHeight: 1.5 }}
+              placeholder={defaultAction === "reject" ? "Reason for rejection (required)..." : "Add a comment..."}
+              style={{ width: "100%", boxSizing: "border-box", fontFamily: "'Inter', sans-serif", fontSize: 13, background: "#f7f8f4", border: `1px solid ${defaultAction === "reject" ? "#fecaca" : "#dde0d4"}`, padding: "10px 14px", color: "#1a1f0e", outline: "none", resize: "vertical", lineHeight: 1.5 }}
               onFocus={(e) => { e.target.style.borderColor = "#3d7a2b"; e.target.style.background = "#fff" }}
-              onBlur={(e)  => { e.target.style.borderColor = "#dde0d4"; e.target.style.background = "#f7f8f4" }}
+              onBlur={(e)  => { e.target.style.borderColor = defaultAction === "reject" ? "#fecaca" : "#dde0d4"; e.target.style.background = "#f7f8f4" }}
             />
           </div>
         </div>
@@ -169,18 +174,15 @@ function DetailDrawer({ transfer, onClose, onApprove, onReject, submitting }) {
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function HOApprovalsPage() {
-  // transfers: TransferResponse[]  from GET /api/v1/approvals/pending/head-office
   const [transfers, setTransfers] = useState([])
   const [selected,  setSelected]  = useState(null)
+  const [defaultAction, setDefaultAction] = useState(null) // "approve" | "reject" | null
   const [search,    setSearch]    = useState("")
   const [loading,   setLoading]   = useState(true)
   const [submitting,setSubmitting]= useState(false)
-  const [done,      setDone]      = useState([]) // { id, status }
+  const [done,      setDone]      = useState([])
   const [error,     setError]     = useState(null)
 
-  // Load pending head-office approvals
-  // Endpoint: GET /api/v1/approvals/pending/head-office
-  // Returns: ApiResponse<Page<TransferResponse>>
   useEffect(() => {
     async function load() {
       try {
@@ -200,7 +202,6 @@ export default function HOApprovalsPage() {
   const filtered = transfers.filter((t) => {
     if (!search) return true
     const q = search.toLowerCase()
-    // Search across TransferResponse fields
     return (
       String(t.id).includes(q) ||
       t.itemName?.toLowerCase().includes(q) ||
@@ -210,18 +211,23 @@ export default function HOApprovalsPage() {
     )
   })
 
-  // POST /api/v1/approvals/{transferId}/ho-approve
-  // Body: ApprovalDecisionRequest { approved: true, comments: string }
+  function openDrawer(transfer, action = null) {
+    setSelected(transfer)
+    setDefaultAction(action)
+  }
+
+  function closeDrawer() {
+    setSelected(null)
+    setDefaultAction(null)
+  }
+
   async function handleApprove(id, comment) {
     try {
       setSubmitting(true)
-      await api.post(`/approvals/${id}/ho-approve`, {
-        approved: true,
-        comments: comment, // ApprovalDecisionRequest.comments
-      })
+      await api.post(`/approvals/${id}/ho-approve`, { approved: true, comments: comment })
       setDone((d) => [...d, { id, status: "approved" }])
       setTransfers((prev) => prev.filter((t) => t.id !== id))
-      setSelected(null)
+      closeDrawer()
       toast.success(`Transfer #${id} approved`)
     } catch (err) {
       toast.error(err.message || "Approval failed")
@@ -230,8 +236,6 @@ export default function HOApprovalsPage() {
     }
   }
 
-  // POST /api/v1/approvals/{transferId}/ho-reject
-  // Body: ApprovalDecisionRequest { approved: false, comments: string }
   async function handleReject(id, comment) {
     if (!comment?.trim()) {
       toast.error("A comment is required when rejecting a transfer.")
@@ -239,13 +243,10 @@ export default function HOApprovalsPage() {
     }
     try {
       setSubmitting(true)
-      await api.post(`/approvals/${id}/ho-reject`, {
-        approved: false,
-        comments: comment, // ApprovalDecisionRequest.comments
-      })
+      await api.post(`/approvals/${id}/ho-reject`, { approved: false, comments: comment })
       setDone((d) => [...d, { id, status: "rejected" }])
       setTransfers((prev) => prev.filter((t) => t.id !== id))
-      setSelected(null)
+      closeDrawer()
       toast.success(`Transfer #${id} rejected`)
     } catch (err) {
       toast.error(err.message || "Rejection failed")
@@ -262,7 +263,7 @@ export default function HOApprovalsPage() {
           subtitle="Level 2 review — approve or reject manager-approved transfer requests."
         />
 
-        {/* Toast history */}
+        {/* Action history */}
         {done.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {done.map(({ id, status }) => (
@@ -336,34 +337,28 @@ export default function HOApprovalsPage() {
                 onMouseEnter={(e) => e.currentTarget.style.background = "#fafbf8"}
                 onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
               >
-                {/* TransferResponse.id */}
                 <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#3d7a2b", fontWeight: 600 }}>
                   #{t.id}
                 </span>
 
-                {/* TransferResponse.itemName + itemCode */}
                 <div>
                   <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 500, color: "#1a1f0e", margin: "0 0 2px" }}>{t.itemName}</p>
                   <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9ca3af" }}>{t.itemCode}</span>
                 </div>
 
-                {/* TransferResponse.sourceBranchName + destinationBranchName */}
                 <div>
                   <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#1a1f0e", margin: "0 0 2px" }}>{t.sourceBranchName}</p>
                   <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#6b7260", margin: 0 }}>→ {t.destinationBranchName}</p>
                 </div>
 
-                {/* TransferResponse.quantity */}
                 <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 500, color: "#1a1f0e" }}>{t.quantity}</span>
 
-                {/* TransferResponse.totalValue (BigDecimal) */}
                 <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#1a1f0e" }}>
                   {t.totalValue != null
                     ? new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(t.totalValue)
                     : "—"}
                 </span>
 
-                {/* TransferResponse.managerComments — from level-1 approval */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <Badge label="Mgr Approved" color="green" />
                   {t.managerComments && (
@@ -373,10 +368,11 @@ export default function HOApprovalsPage() {
                   )}
                 </div>
 
-                {/* Actions */}
+                {/* Actions — FIX 1: approve opens drawer instead of firing blank
+                            FIX 2: reject passes "reject" so textarea auto-focuses */}
                 <div style={{ display: "flex", gap: 6 }}>
                   <button
-                    onClick={() => setSelected(t)}
+                    onClick={() => openDrawer(t)}
                     title="Review details"
                     style={{ background: "#f7f8f4", border: "1px solid #dde0d4", cursor: "pointer", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7260", transition: "border-color 0.13s, color 0.13s" }}
                     onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#3d7a2b"; e.currentTarget.style.color = "#3d7a2b" }}
@@ -385,9 +381,9 @@ export default function HOApprovalsPage() {
                     <IconEye />
                   </button>
                   <button
-                    onClick={() => handleApprove(t.id, "")}
+                    onClick={() => openDrawer(t, "approve")}
                     disabled={submitting}
-                    title="Quick approve"
+                    title="Approve (opens review)"
                     style={{ background: "#f0f7ed", border: "1px solid #c6dfc0", cursor: submitting ? "wait" : "pointer", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: "#3d7a2b", transition: "background 0.13s" }}
                     onMouseEnter={(e) => { if (!submitting) e.currentTarget.style.background = "#e4f0df" }}
                     onMouseLeave={(e) => { if (!submitting) e.currentTarget.style.background = "#f0f7ed" }}
@@ -395,7 +391,7 @@ export default function HOApprovalsPage() {
                     <IconCheck />
                   </button>
                   <button
-                    onClick={() => setSelected(t)}
+                    onClick={() => openDrawer(t, "reject")}
                     title="Reject (requires comment)"
                     style={{ background: "#fef2f2", border: "1px solid #fecaca", cursor: "pointer", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: "#dc2626", transition: "background 0.13s" }}
                     onMouseEnter={(e) => e.currentTarget.style.background = "#fee2e2"}
@@ -412,7 +408,8 @@ export default function HOApprovalsPage() {
 
       <DetailDrawer
         transfer={selected}
-        onClose={() => setSelected(null)}
+        defaultAction={defaultAction}
+        onClose={closeDrawer}
         onApprove={handleApprove}
         onReject={handleReject}
         submitting={submitting}

@@ -20,6 +20,11 @@ function unwrap(raw) {
   return []
 }
 
+// Resolve whichever ID field the backend sends
+function tid(t) {
+  return t.id ?? t.transferId
+}
+
 function monthRange(ym) {
   const [y, m] = ym.split("-").map(Number)
   const last = new Date(y, m, 0).getDate()
@@ -94,7 +99,7 @@ export default function FinanceSummary() {
   const avgCost        = totalTransfers > 0 ? Math.round(Number(totalCost) / totalTransfers) : 0
 
   const handleCostSubmit = async ({ transferId, amount, currency, costType, notes }) => {
-    const existing = safe.find(t => t.id === transferId)
+    const existing = safe.find(t => tid(t) === transferId)
     const hasCost  = existing?._hasCost === true
     try {
       setSubmitting(true)
@@ -102,7 +107,7 @@ export default function FinanceSummary() {
       hasCost ? await updateCost(transferId, body) : await recordCost(transferId, body)
       setTransfers(prev =>
         (Array.isArray(prev) ? prev : []).map(t =>
-          t.id === transferId
+          tid(t) === transferId
             ? { ...t, _costAmount: amount, _costType: costType, _costNotes: notes, _hasCost: true }
             : t
         )
@@ -122,7 +127,7 @@ export default function FinanceSummary() {
     const headers = ["Transfer ID","From","To","Item","Qty","Status","Cost Type","Amount (RWF)"]
     const rows = safe
       .filter(t => t._hasCost)
-      .map(t => [t.id, t.sourceBranchName, t.destinationBranchName, t.itemName, t.quantity, t.status, t._costType, t._costAmount].join(","))
+      .map(t => [tid(t), t.sourceBranchName, t.destinationBranchName, t.itemName, t.quantity, t.status, t._costType, t._costAmount].join(","))
     const blob = new Blob([[headers.join(","), ...rows].join("\n")], { type: "text/csv" })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement("a")
@@ -191,8 +196,15 @@ export default function FinanceSummary() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
             {safe.slice(0, 6).map(t => (
               <TransferCostCard
-                key={t.id}
-                transfer={{ id: t.id, fromBranch: t.sourceBranchName, toBranch: t.destinationBranchName, item: t.itemName, quantity: t.quantity, status: t.status }}
+                key={tid(t)}
+                transfer={{
+                  id: tid(t),
+                  fromBranch: t.sourceBranchName,
+                  toBranch: t.destinationBranchName,
+                  item: t.itemName,
+                  quantity: t.quantity,
+                  status: t.status,
+                }}
                 cost={t._hasCost ? { amount: t._costAmount, currency: "RWF", costType: t._costType, notes: t._costNotes } : null}
                 onRecord={(transfer) => setRecordModal(transfer)}
               />
@@ -234,7 +246,11 @@ export default function FinanceSummary() {
       </div>
 
       {recordModal && (
-        <CostRecordForm transferId={recordModal.id} onSubmit={handleCostSubmit} onCancel={() => setRecordModal(null)} />
+        <CostRecordForm
+          transferId={recordModal.id}
+          onSubmit={handleCostSubmit}
+          onCancel={() => setRecordModal(null)}
+        />
       )}
     </div>
   )
