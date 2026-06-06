@@ -30,7 +30,6 @@ const REPORT_TYPES = [
   { value: "LOW_STOCK",        label: "Low Stock Alerts" },
 ]
 
-// TransferResponse.status values
 const ALL_STATUSES = ["ALL", "PENDING", "MANAGER_APPROVED", "HO_APPROVED", "IN_TRANSIT", "RECEIVED", "COMPLETED", "REJECTED", "CANCELLED"]
 
 const STATUS_STYLE = {
@@ -57,32 +56,28 @@ const RWF = (v) => v != null
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function HOReportsPage() {
   const [reportType, setReportType] = useState("TRANSFER_HISTORY")
-  // branches: BranchResponse[]  from GET /api/v1/branches
   const [branches, setBranches]     = useState([])
-  // items: ItemResponse[]  from GET /api/v1/items
   const [items, setItems]           = useState([])
   const [results, setResults]       = useState([])
   const [loading, setLoading]       = useState(false)
   const [hasRun, setHasRun]         = useState(false)
   const [search, setSearch]         = useState("")
 
-  // Filter state — maps to API query params
-  const [branchFilter, setBranch]   = useState("")      // BranchResponse.id
-  const [statusFilter, setStatus]   = useState("ALL")   // TransferResponse.status
-  const [itemFilter, setItem]       = useState("")      // ItemResponse.id
-  const [dateFrom, setDateFrom]     = useState("")      // ?fromDate=
-  const [dateTo, setDateTo]         = useState("")      // ?toDate=
+  // Filter state — all stored as strings (select values), parsed to int on send
+  const [branchFilter, setBranch]   = useState("")
+  const [statusFilter, setStatus]   = useState("ALL")
+  const [itemFilter, setItem]       = useState("")
+  const [dateFrom, setDateFrom]     = useState("")
+  const [dateTo, setDateTo]         = useState("")
 
-  // Load dropdown data on mount
-  useEffect(() => {
-    api.get("/branches?size=100&sort=name,asc")
-      .then((r) => setBranches(r?.data?.content ?? []))
-      .catch(() => {})
-    api.get("/items?size=200&sort=name,asc")
-      .then((r) => setItems(r?.data?.content ?? []))
-      .catch(() => {})
-  }, [])
-
+useEffect(() => {
+  api.get("/branches?size=100&sort=name,asc")
+    .then((r) => setBranches(Array.isArray(r?.data) ? r.data : r?.data?.content ?? []))
+    .catch(() => {})
+  api.get("/items?size=200&sort=name,asc")
+    .then((r) => setItems(Array.isArray(r?.data) ? r.data : r?.data?.content ?? []))
+    .catch(() => {})
+}, [])
   // ── Run Report ──────────────────────────────────────────────────────────────
   async function runReport() {
     try {
@@ -92,33 +87,41 @@ export default function HOReportsPage() {
 
       const params = new URLSearchParams({ size: "500" })
 
+      // FIX: always parseInt branchId and itemId so Spring receives a proper Long,
+      // not a string — prevents silent filter failures on numeric @RequestParam bindings.
+      const branchId = branchFilter ? parseInt(branchFilter, 10) : null
+      const itemId   = itemFilter   ? parseInt(itemFilter,   10) : null
+
       if (reportType === "TRANSFER_HISTORY") {
-        // GET /api/v1/transfers
-        // Params: status, branchId (maps to sourceBranchId or all), itemId, fromDate, toDate
-        if (statusFilter !== "ALL") params.append("status", statusFilter)
-        if (branchFilter)           params.append("branchId", branchFilter)
-        if (itemFilter)             params.append("itemId", itemFilter)
-        if (dateFrom)               params.append("fromDate", dateFrom)
-        if (dateTo)                 params.append("toDate", dateTo)
+        if (statusFilter !== "ALL")  params.append("status",   statusFilter)
+        if (branchId !== null)       params.append("branchId", branchId)
+        if (itemId   !== null)       params.append("itemId",   itemId)
+        if (dateFrom)                params.append("fromDate", dateFrom)
+        if (dateTo)                  params.append("toDate",   dateTo)
         const res = await api.get(`/transfers?${params}`)
         setResults(res?.data?.content ?? [])
 
       } else if (reportType === "STOCK_LEVELS") {
-        // GET /api/v1/stock
-        // Params: branchId, itemId
-        if (branchFilter) params.append("branchId", branchFilter)
-        if (itemFilter)   params.append("itemId", itemFilter)
+        if (branchId !== null) params.append("branchId", branchId)
+        if (itemId   !== null) params.append("itemId",   itemId)
         const res = await api.get(`/stock?${params}`)
         setResults(res?.data?.content ?? [])
 
       } else if (reportType === "LOW_STOCK") {
-        // GET /api/v1/stock/low-stock-alerts
-        // Params: branchId (optional)
-        // Returns: ApiResponse<List<LowStockAlertResponse>> (not paged)
-        if (branchFilter) params.append("branchId", branchFilter)
+        if (branchId !== null) params.append("branchId", branchId)
         const res = await api.get(`/stock/low-stock-alerts?${params}`)
-        // low-stock-alerts returns List not Page
-        setResults(Array.isArray(res?.data) ? res.data : [])
+        // low-stock-alerts returns ApiResponse<List<...>>, not a Page —
+        // unwrap res.data.data if the wrapper is present, else fall back to res.data
+        const payload = res?.data
+        if (Array.isArray(payload)) {
+          setResults(payload)
+        } else if (Array.isArray(payload?.data)) {
+          setResults(payload.data)
+        } else if (Array.isArray(payload?.content)) {
+          setResults(payload.content)
+        } else {
+          setResults([])
+        }
       }
     } catch (err) {
       toast.error(err.message || "Report generation failed")
@@ -139,7 +142,6 @@ export default function HOReportsPage() {
     if (!search) return true
     const q = search.toLowerCase()
     if (reportType === "TRANSFER_HISTORY") {
-      // TransferResponse fields
       return (
         String(r.id).includes(q) ||
         r.itemName?.toLowerCase().includes(q) ||
@@ -148,15 +150,7 @@ export default function HOReportsPage() {
         r.destinationBranchName?.toLowerCase().includes(q)
       )
     }
-    if (reportType === "STOCK_LEVELS") {
-      // StockLevelResponse fields
-      return (
-        r.itemName?.toLowerCase().includes(q) ||
-        r.itemCode?.toLowerCase().includes(q) ||
-        r.branchName?.toLowerCase().includes(q)
-      )
-    }
-    // LowStockAlertResponse fields
+    // STOCK_LEVELS and LOW_STOCK share same fields
     return (
       r.itemName?.toLowerCase().includes(q) ||
       r.itemCode?.toLowerCase().includes(q) ||
@@ -164,13 +158,12 @@ export default function HOReportsPage() {
     )
   })
 
-  // ── CSV Export — FR-28 ──────────────────────────────────────────────────────
+  // ── CSV Export ──────────────────────────────────────────────────────────────
   function exportCSV() {
     if (filtered.length === 0) { toast.error("Nothing to export"); return }
     let headers, rows
 
     if (reportType === "TRANSFER_HISTORY") {
-      // TransferResponse fields
       headers = ["ID", "Item", "Item Code", "From Branch", "To Branch", "Qty", "Total Value", "Status", "Requested By", "Requested At"]
       rows = filtered.map((t) => [
         t.id, t.itemName ?? "", t.itemCode ?? "",
@@ -181,7 +174,6 @@ export default function HOReportsPage() {
         t.requestedAt ? new Date(t.requestedAt).toLocaleDateString() : "",
       ])
     } else if (reportType === "STOCK_LEVELS") {
-      // StockLevelResponse fields
       headers = ["Item Code", "Item Name", "Branch", "On Hand", "Reserved", "Min Threshold", "Low Stock"]
       rows = filtered.map((s) => [
         s.itemCode ?? "", s.itemName ?? "", s.branchName ?? "",
@@ -189,7 +181,6 @@ export default function HOReportsPage() {
         s.isLowStock ? "YES" : "NO",
       ])
     } else {
-      // LowStockAlertResponse fields
       headers = ["Item Code", "Item Name", "Branch", "On Hand", "Min Threshold", "Deficit"]
       rows = filtered.map((s) => [
         s.itemCode ?? "", s.itemName ?? "", s.branchName ?? "",
@@ -251,7 +242,6 @@ export default function HOReportsPage() {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 16 }}>
 
-          {/* Branch — BranchResponse.id + BranchResponse.name */}
           {showBranchFilter && (
             <div>
               <span style={labelStyle}>Branch</span>
@@ -262,7 +252,6 @@ export default function HOReportsPage() {
             </div>
           )}
 
-          {/* Status — TransferResponse.status enum values */}
           {showStatusFilter && (
             <div>
               <span style={labelStyle}>Status</span>
@@ -274,7 +263,6 @@ export default function HOReportsPage() {
             </div>
           )}
 
-          {/* Item — ItemResponse.id + ItemResponse.name + ItemResponse.code */}
           {showItemFilter && (
             <div>
               <span style={labelStyle}>Item</span>
@@ -287,7 +275,6 @@ export default function HOReportsPage() {
             </div>
           )}
 
-          {/* fromDate / toDate — TransferResponse.requestedAt range */}
           {showDateFilter && (
             <>
               <div>
@@ -332,7 +319,6 @@ export default function HOReportsPage() {
       {/* Results */}
       {hasRun && (
         <>
-          {/* Summary bar */}
           {!loading && filtered.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "center", background: "#f7f8f4", border: "1px solid #dde0d4", padding: "12px 24px" }}>
               <div>
@@ -352,7 +338,6 @@ export default function HOReportsPage() {
                 </div>
               )}
 
-              {/* Search within results */}
               <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, border: "1px solid #dde0d4", background: "#fff", padding: "6px 12px", minWidth: 220 }}>
                 <span style={{ color: "#9ca3af", flexShrink: 0 }}><IconSearch /></span>
                 <input
@@ -366,7 +351,6 @@ export default function HOReportsPage() {
             </div>
           )}
 
-          {/* Table */}
           <div style={{ background: "#fff", border: "1px solid #dde0d4", overflow: "hidden" }}>
             {loading ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 0" }}>
@@ -398,7 +382,7 @@ export default function HOReportsPage() {
   )
 }
 
-// ── Transfer History Table — TransferResponse ──────────────────────────────────
+// ── Transfer History Table ─────────────────────────────────────────────────────
 function TransferTable({ rows }) {
   return (
     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -412,31 +396,21 @@ function TransferTable({ rows }) {
       <tbody>
         {rows.map((t, idx) => (
           <tr key={t.id} style={{ borderBottom: idx < rows.length - 1 ? "1px solid #f0f1ec" : "none" }}>
-            {/* TransferResponse.id */}
             <td style={{ padding: "12px 16px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>#{t.id}</td>
-            {/* TransferResponse.itemName */}
             <td style={{ padding: "12px 16px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>{t.itemName}</td>
-            {/* TransferResponse.itemCode */}
             <td style={{ padding: "12px 16px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af" }}>{t.itemCode ?? "—"}</td>
-            {/* TransferResponse.sourceBranchName */}
             <td style={{ padding: "12px 16px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>{t.sourceBranchName}</td>
-            {/* TransferResponse.destinationBranchName */}
             <td style={{ padding: "12px 16px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>{t.destinationBranchName}</td>
-            {/* TransferResponse.quantity */}
             <td style={{ padding: "12px 16px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>{t.quantity}</td>
-            {/* TransferResponse.totalValue (BigDecimal) */}
             <td style={{ padding: "12px 16px", fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#6b7260" }}>
               {t.totalValue != null ? new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(t.totalValue) : "—"}
             </td>
-            {/* TransferResponse.status */}
             <td style={{ padding: "12px 16px" }}>
               <span style={{ ...(STATUS_STYLE[t.status] ?? { background: "#f3f4f6", color: "#6b7280" }), fontFamily: "'DM Mono', monospace", fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 999 }}>
                 {STATUS_LABEL[t.status] ?? t.status}
               </span>
             </td>
-            {/* TransferResponse.requestedByEmail */}
             <td style={{ padding: "12px 16px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>{t.requestedByEmail ?? "—"}</td>
-            {/* TransferResponse.requestedAt (LocalDateTime) */}
             <td style={{ padding: "12px 16px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af" }}>
               {t.requestedAt ? new Date(t.requestedAt).toLocaleDateString() : "—"}
             </td>
@@ -447,7 +421,7 @@ function TransferTable({ rows }) {
   )
 }
 
-// ── Stock Levels Table — StockLevelResponse ────────────────────────────────────
+// ── Stock Levels Table ─────────────────────────────────────────────────────────
 function StockTable({ rows }) {
   return (
     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -461,19 +435,12 @@ function StockTable({ rows }) {
       <tbody>
         {rows.map((s, idx) => (
           <tr key={s.id ?? idx} style={{ borderBottom: idx < rows.length - 1 ? "1px solid #f0f1ec" : "none" }}>
-            {/* StockLevelResponse.itemCode */}
             <td style={{ padding: "12px 16px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>{s.itemCode ?? "—"}</td>
-            {/* StockLevelResponse.itemName */}
             <td style={{ padding: "12px 16px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>{s.itemName}</td>
-            {/* StockLevelResponse.branchName */}
             <td style={{ padding: "12px 16px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>{s.branchName ?? "—"}</td>
-            {/* StockLevelResponse.quantityOnHand */}
             <td style={{ padding: "12px 16px", fontFamily: "'Inter', sans-serif", fontWeight: 600, color: s.isLowStock ? "#dc2626" : "#1a1f0e" }}>{s.quantityOnHand}</td>
-            {/* StockLevelResponse.reservedQuantity */}
             <td style={{ padding: "12px 16px", fontFamily: "'Inter', sans-serif", color: "#9ca3af" }}>{s.reservedQuantity ?? 0}</td>
-            {/* StockLevelResponse.minimumThreshold */}
             <td style={{ padding: "12px 16px", fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#6b7260" }}>{s.minimumThreshold}</td>
-            {/* StockLevelResponse.isLowStock (boolean) */}
             <td style={{ padding: "12px 16px" }}>
               {s.isLowStock ? (
                 <span style={{ display: "inline-block", background: "#fef2f2", color: "#dc2626", border: "1px solid #fee2e2", fontFamily: "'DM Mono', monospace", fontSize: 10, fontWeight: 600, padding: "2px 8px" }}>
@@ -492,7 +459,7 @@ function StockTable({ rows }) {
   )
 }
 
-// ── Low Stock Table — LowStockAlertResponse ────────────────────────────────────
+// ── Low Stock Table ────────────────────────────────────────────────────────────
 function LowStockTable({ rows }) {
   return (
     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -506,17 +473,11 @@ function LowStockTable({ rows }) {
       <tbody>
         {rows.map((s, idx) => (
           <tr key={`${s.itemId}-${s.branchId}`} style={{ borderBottom: idx < rows.length - 1 ? "1px solid #f0f1ec" : "none" }}>
-            {/* LowStockAlertResponse.itemCode */}
             <td style={{ padding: "12px 16px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>{s.itemCode ?? "—"}</td>
-            {/* LowStockAlertResponse.itemName */}
             <td style={{ padding: "12px 16px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>{s.itemName}</td>
-            {/* LowStockAlertResponse.branchName */}
             <td style={{ padding: "12px 16px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>{s.branchName}</td>
-            {/* LowStockAlertResponse.quantityOnHand */}
             <td style={{ padding: "12px 16px", fontFamily: "'Inter', sans-serif", fontWeight: 600, color: "#dc2626" }}>{s.quantityOnHand}</td>
-            {/* LowStockAlertResponse.minimumThreshold */}
             <td style={{ padding: "12px 16px", fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#6b7260" }}>{s.minimumThreshold}</td>
-            {/* LowStockAlertResponse.deficit */}
             <td style={{ padding: "12px 16px", fontFamily: "'Inter', sans-serif", fontWeight: 600, color: "#dc2626" }}>
               -{s.deficit}
             </td>
