@@ -3,7 +3,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import toast from "react-hot-toast"
-import { saveToken } from "@/lib/auth/session"
+import { saveToken } from "@/lib/auth/tokens"        // ← new in-memory store
 import { useAuthContext } from "@/lib/context/AuthContext"
 import { ROLE_HOME } from "@/lib/utils/constants"
 import { jwtDecode } from "jwt-decode"
@@ -23,13 +23,16 @@ export default function LoginPage() {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(form),
+        credentials: "include",   // ← critical: lets browser store the httpOnly refresh_token cookie
       })
       if (!res.ok) throw new Error("Invalid email or password")
 
       const data    = await res.json()
       const decoded = jwtDecode(data.token)
 
+      // Save access token in memory (replaces old cookie approach)
       saveToken(data.token)
+
       setUser({
         sub:        decoded.sub,
         role:       data.role,

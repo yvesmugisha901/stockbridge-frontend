@@ -1,6 +1,7 @@
 "use client"
-import { createContext, useContext, useState, useEffect } from "react"
-import { getUser, isAuthenticated, removeToken } from "@/lib/auth/session"
+import { createContext, useContext, useState } from "react"
+import { getUser, saveToken, removeToken } from "@/lib/auth/tokens"
+import { logout as doLogout } from "@/lib/auth/logout"
 
 const AuthContext = createContext(null)
 
@@ -12,40 +13,21 @@ function normalizeUser(raw) {
   }
 }
 
-// Read user from token synchronously so it's available on the very first render.
-// This prevents branchName/fullName from being undefined before useEffect fires.
-function getInitialUser() {
-  if (typeof window === "undefined") return null  // SSR guard
-  if (!isAuthenticated()) return null
-  return normalizeUser(getUser())
-}
-
 export function AuthProvider({ children }) {
-  const [user, setUserRaw] = useState(getInitialUser)  // ← runs once synchronously
-  const [loading, setLoading] = useState(true)
+  const [user, setUserRaw] = useState(() => normalizeUser(getUser()))
 
   function setUser(raw) {
     setUserRaw(normalizeUser(raw))
   }
 
-  useEffect(() => {
-    // Re-read on mount in case the cookie changed since SSR
-    if (isAuthenticated()) {
-      setUser(getUser())
-    } else {
-      setUserRaw(null)
-    }
-    setLoading(false)
-  }, [])
-
-  function logout() {
-    removeToken()
-    setUserRaw(null)
-    window.location.href = "/login"
+  async function logout() {
+    setUserRaw(null)   // clear UI immediately
+    removeToken()      // clear in-memory access token
+    await doLogout()   // calls Spring /auth/logout to revoke + clear cookie, then redirects
   }
 
   return (
-    <AuthContext.Provider value={{ user, setUser, loading, logout }}>
+    <AuthContext.Provider value={{ user, setUser, logout }}>
       {children}
     </AuthContext.Provider>
   )
