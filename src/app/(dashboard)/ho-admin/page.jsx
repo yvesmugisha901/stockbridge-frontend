@@ -67,35 +67,25 @@ const QUICK = [
   { label: "Reports",         desc: "Stock & transfer reports", href: "/ho-admin/reports",     Icon: IconReport    },
 ]
 
-// ── Spinner ────────────────────────────────────────────────────────────────────
 function Spinner() {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "48px 0" }}>
-      <div style={{
-        width: 24, height: 24,
-        border: "2px solid #dde0d4",
-        borderTopColor: "#3d7a2b",
-        borderRadius: "50%",
-        animation: "spin 0.7s linear infinite",
-      }} />
+      <div style={{ width: 24, height: 24, border: "2px solid #dde0d4", borderTopColor: "#3d7a2b", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )
 }
 
-// ── Component ──────────────────────────────────────────────────────────────────
 export default function HOAdminDashboard() {
   const [stats, setStats] = useState({
     pendingApprovals: 0,
-    totalBranches: 0,
-    lowStockItems: 0,
-    inTransit: 0,
-    totalItems: 0,
-    completedToday: 0,
+    totalBranches:    0,
+    lowStockItems:    0,
+    inTransit:        0,
+    totalItems:       0,
+    completedToday:   0,
   })
-  // pending: TransferResponse[]  (from GET /api/v1/approvals/pending/head-office)
   const [pendingList, setPendingList]   = useState([])
-  // lowStock: LowStockAlertResponse[]  (from GET /api/v1/stock/low-stock-alerts)
   const [lowStockList, setLowStockList] = useState([])
   const [loading, setLoading]           = useState(true)
   const [error, setError]               = useState(null)
@@ -105,35 +95,38 @@ export default function HOAdminDashboard() {
       try {
         setLoading(true)
 
-        // Run all stat calls in parallel — each returns ApiResponse<Page<T>> or ApiResponse<List<T>>
         const [
-          pendingRes,   // GET /api/v1/approvals/pending/head-office?size=4
-          branchesRes,  // GET /api/v1/branches?size=1
-          lowStockRes,  // GET /api/v1/stock/low-stock-alerts
-          inTransitRes, // GET /api/v1/transfers?status=IN_TRANSIT&size=1
-          itemsRes,     // GET /api/v1/items?size=1
-          completedRes, // GET /api/v1/transfers?status=COMPLETED&size=1
+          pendingRes,
+          branchesRes,  // ApiResponse<List<Branch>> — plain array, NO pagination
+          lowStockRes,
+          inTransitRes,
+          itemsRes,
+          completedRes,
         ] = await Promise.all([
           api.get("/approvals/pending/head-office?size=4&page=0"),
-          api.get("/branches?size=1"),
+          api.get("/branches"),              // no size/sort params — not a paged endpoint
           api.get("/stock/low-stock-alerts"),
           api.get("/transfers?status=IN_TRANSIT&size=1"),
           api.get("/items?size=1"),
           api.get("/transfers?status=COMPLETED&size=1"),
         ])
 
-        // Pending approvals list (top 4) — Page<TransferResponse>
+        // Pending approvals — ApiResponse<Page<TransferResponse>>
         const pendingPage = pendingRes?.data
         setPendingList(pendingPage?.content ?? [])
 
-        // Low stock list — List<LowStockAlertResponse> (not paged)
-        const lowStockData = lowStockRes?.data ?? []
+        // Low stock — ApiResponse<List<LowStockAlertResponse>> (not paged)
+        const lowStockData = Array.isArray(lowStockRes?.data) ? lowStockRes.data : []
         setLowStockList(lowStockData.slice(0, 4))
+
+        // Branches — ApiResponse<List<BranchSummaryResponse>>
+        // plain List, no totalElements → use .length
+        const branchData = Array.isArray(branchesRes?.data) ? branchesRes.data : []
 
         setStats({
           pendingApprovals: pendingPage?.totalElements ?? 0,
-          totalBranches:    branchesRes?.data?.totalElements ?? 0,
-          lowStockItems:    Array.isArray(lowStockData) ? lowStockData.length : 0,
+          totalBranches:    branchData.length,              // ← fixed: was totalElements (doesn't exist on List)
+          lowStockItems:    lowStockData.length,
           inTransit:        inTransitRes?.data?.totalElements ?? 0,
           totalItems:       itemsRes?.data?.totalElements ?? 0,
           completedToday:   completedRes?.data?.totalElements ?? 0,
@@ -151,10 +144,7 @@ export default function HOAdminDashboard() {
   if (loading) return <Spinner />
 
   if (error) return (
-    <div style={{
-      padding: "24px", background: "#fef2f2", border: "1px solid #fecaca",
-      fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#dc2626",
-    }}>
+    <div style={{ padding: "24px", background: "#fef2f2", border: "1px solid #fecaca", fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#dc2626" }}>
       Failed to load dashboard: {error}
     </div>
   )
@@ -166,56 +156,17 @@ export default function HOAdminDashboard() {
         subtitle="Final approvals, system-wide stock visibility, and inventory management."
       />
 
-      {/* ── Stats ── */}
+      {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
-        <StatsCard
-          label="Final Approvals Pending"
-          value={stats.pendingApprovals}
-          icon={<IconApprovals />}
-          color={stats.pendingApprovals > 0 ? "yellow" : "green"}
-          trend={stats.pendingApprovals > 0 ? "Requires your action" : "All clear"}
-          trendUp={stats.pendingApprovals === 0}
-        />
-        <StatsCard
-          label="Total Branches"
-          value={stats.totalBranches}
-          icon={<IconBranch />}
-          color="blue"
-          trend="All operational"
-        />
-        <StatsCard
-          label="Low Stock Items"
-          value={stats.lowStockItems}
-          icon={<IconAlert />}
-          color={stats.lowStockItems > 0 ? "red" : "green"}
-          trend={stats.lowStockItems > 0 ? "Below threshold" : "Stock healthy"}
-          trendUp={stats.lowStockItems === 0}
-        />
-        <StatsCard
-          label="Transfers In Transit"
-          value={stats.inTransit}
-          icon={<IconTruck />}
-          color="blue"
-          trend="Awaiting receipt"
-        />
-        <StatsCard
-          label="Catalogue Items"
-          value={stats.totalItems}
-          icon={<IconBox />}
-          color="green"
-          trend="Active items"
-        />
-        <StatsCard
-          label="Completed Today"
-          value={stats.completedToday}
-          icon={<IconReport />}
-          color="green"
-          trend="Transfers finalised"
-          trendUp={true}
-        />
+        <StatsCard label="Final Approvals Pending" value={stats.pendingApprovals} icon={<IconApprovals />} color={stats.pendingApprovals > 0 ? "yellow" : "green"} trend={stats.pendingApprovals > 0 ? "Requires your action" : "All clear"} trendUp={stats.pendingApprovals === 0} />
+        <StatsCard label="Total Branches"          value={stats.totalBranches}    icon={<IconBranch />}    color="blue"                                              trend="All operational" />
+        <StatsCard label="Low Stock Items"         value={stats.lowStockItems}    icon={<IconAlert />}     color={stats.lowStockItems > 0 ? "red" : "green"}         trend={stats.lowStockItems > 0 ? "Below threshold" : "Stock healthy"} trendUp={stats.lowStockItems === 0} />
+        <StatsCard label="Transfers In Transit"    value={stats.inTransit}        icon={<IconTruck />}     color="blue"                                              trend="Awaiting receipt" />
+        <StatsCard label="Catalogue Items"         value={stats.totalItems}       icon={<IconBox />}       color="green"                                             trend="Active items" />
+        <StatsCard label="Completed Today"         value={stats.completedToday}   icon={<IconReport />}    color="green"                                             trend="Transfers finalised" trendUp={true} />
       </div>
 
-      {/* ── Quick Actions ── */}
+      {/* Quick Actions */}
       <div style={{ background: "#fff", border: "1px solid #dde0d4", padding: "24px" }}>
         <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.15em", color: "#6b7260", margin: "0 0 16px" }}>
           Quick Actions
@@ -223,8 +174,7 @@ export default function HOAdminDashboard() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
           {QUICK.map(({ label, desc, href, Icon }) => (
             <Link
-              key={href + label}
-              href={href}
+              key={href + label} href={href}
               style={{ display: "flex", flexDirection: "column", gap: 6, padding: "14px 16px", border: "1px solid #dde0d4", background: "#f7f8f4", textDecoration: "none", transition: "border-color 0.15s, background 0.15s" }}
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#3d7a2b"; e.currentTarget.style.background = "#f0f7ed" }}
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#dde0d4"; e.currentTarget.style.background = "#f7f8f4" }}
@@ -237,24 +187,18 @@ export default function HOAdminDashboard() {
         </div>
       </div>
 
-      {/* ── Bottom row ── */}
+      {/* Bottom row */}
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.2fr) minmax(0,1fr)", gap: 16 }}>
 
-        {/* Pending Approvals table — fields from TransferResponse */}
+        {/* Pending Approvals */}
         <div style={{ background: "#fff", border: "1px solid #dde0d4", padding: "24px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 600, color: "#1a1f0e", margin: 0 }}>
-              Pending Final Approvals
-            </p>
-            <Link href="/ho-admin/approvals" style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#3d7a2b", textDecoration: "none", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-              View all →
-            </Link>
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 600, color: "#1a1f0e", margin: 0 }}>Pending Final Approvals</p>
+            <Link href="/ho-admin/approvals" style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#3d7a2b", textDecoration: "none", textTransform: "uppercase", letterSpacing: "0.08em" }}>View all →</Link>
           </div>
 
           {pendingList.length === 0 ? (
-            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "24px 0", margin: 0 }}>
-              No transfers awaiting final approval.
-            </p>
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "24px 0", margin: 0 }}>No transfers awaiting final approval.</p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
               <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 60px 100px", padding: "6px 0", borderBottom: "1px solid #e8ebe3", gap: 8 }}>
@@ -263,27 +207,13 @@ export default function HOAdminDashboard() {
                 ))}
               </div>
               {pendingList.map((t, i) => (
-                <div
-                  key={t.id}
-                  style={{ display: "grid", gridTemplateColumns: "80px 1fr 60px 100px", padding: "11px 0", borderBottom: i < pendingList.length - 1 ? "1px solid #f0f1ec" : "none", gap: 8, alignItems: "center" }}
-                >
-                  {/* TransferResponse.id — used as display reference */}
-                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#3d7a2b", fontWeight: 600 }}>
-                    #{t.id}
-                  </span>
+                <div key={t.id} style={{ display: "grid", gridTemplateColumns: "80px 1fr 60px 100px", padding: "11px 0", borderBottom: i < pendingList.length - 1 ? "1px solid #f0f1ec" : "none", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#3d7a2b", fontWeight: 600 }}>#{t.id}</span>
                   <div>
-                    {/* TransferResponse.itemName */}
-                    <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 500, color: "#1a1f0e", margin: "0 0 2px" }}>
-                      {t.itemName}
-                    </p>
-                    {/* TransferResponse.sourceBranchName → TransferResponse.destinationBranchName */}
-                    <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#6b7260", margin: 0 }}>
-                      {t.sourceBranchName} → {t.destinationBranchName}
-                    </p>
+                    <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 500, color: "#1a1f0e", margin: "0 0 2px" }}>{t.itemName}</p>
+                    <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#6b7260", margin: 0 }}>{t.sourceBranchName} → {t.destinationBranchName}</p>
                   </div>
-                  {/* TransferResponse.quantity */}
                   <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#1a1f0e" }}>{t.quantity}</span>
-                  {/* TransferResponse.totalValue (BigDecimal) */}
                   <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#1a1f0e" }}>
                     {t.totalValue != null
                       ? new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(t.totalValue)
@@ -295,50 +225,29 @@ export default function HOAdminDashboard() {
           )}
         </div>
 
-        {/* Low Stock Alerts — fields from LowStockAlertResponse */}
+        {/* Low Stock Alerts */}
         <div style={{ background: "#fff", border: "1px solid #dde0d4", padding: "24px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 600, color: "#1a1f0e", margin: 0 }}>
-              Low Stock Alerts
-            </p>
-            <Link href="/ho-admin/stock" style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#dc2626", textDecoration: "none", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-              View all →
-            </Link>
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 600, color: "#1a1f0e", margin: 0 }}>Low Stock Alerts</p>
+            <Link href="/ho-admin/stock" style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#dc2626", textDecoration: "none", textTransform: "uppercase", letterSpacing: "0.08em" }}>View all →</Link>
           </div>
 
           {lowStockList.length === 0 ? (
-            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "24px 0", margin: 0 }}>
-              All stock levels healthy.
-            </p>
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9ca3af", textAlign: "center", padding: "24px 0", margin: 0 }}>All stock levels healthy.</p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
               {lowStockList.map((s, i) => (
-                <div
-                  key={`${s.itemId}-${s.branchId}`}
-                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 0", borderBottom: i < lowStockList.length - 1 ? "1px solid #f0f1ec" : "none" }}
-                >
+                <div key={`${s.itemId}-${s.branchId}`} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 0", borderBottom: i < lowStockList.length - 1 ? "1px solid #f0f1ec" : "none" }}>
                   <span style={{ width: 28, height: 28, flexShrink: 0, background: "#fef2f2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #fee2e2" }}>
                     <IconAlert />
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    {/* LowStockAlertResponse.itemName */}
-                    <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 500, color: "#1a1f0e", margin: "0 0 2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {s.itemName}
-                    </p>
-                    {/* LowStockAlertResponse.branchName */}
-                    <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#6b7260", margin: 0 }}>
-                      {s.branchName}
-                    </p>
+                    <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 500, color: "#1a1f0e", margin: "0 0 2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.itemName}</p>
+                    <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#6b7260", margin: 0 }}>{s.branchName}</p>
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    {/* LowStockAlertResponse.quantityOnHand */}
-                    <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: "#dc2626", margin: "0 0 2px" }}>
-                      {s.quantityOnHand} left
-                    </p>
-                    {/* LowStockAlertResponse.minimumThreshold */}
-                    <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#9ca3af", margin: 0 }}>
-                      min {s.minimumThreshold}
-                    </p>
+                    <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: "#dc2626", margin: "0 0 2px" }}>{s.quantityOnHand} left</p>
+                    <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#9ca3af", margin: 0 }}>min {s.minimumThreshold}</p>
                   </div>
                 </div>
               ))}
