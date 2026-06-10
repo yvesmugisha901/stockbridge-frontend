@@ -64,7 +64,7 @@ const STATUS_LABEL = {
   MANAGER_APPROVED: "Approved — Awaiting HO",
   HO_APPROVED: "Approved",
   IN_TRANSIT: "In Transit",
-  COMPLETED: "Completed",
+  COMPLETED: "Received & Completed",
   REJECTED: "Rejected",
   CANCELLED: "Cancelled",
 }
@@ -119,14 +119,16 @@ export default function StaffDashboard() {
     } finally { setActionLoading(null) }
   }
 
-  const handleConfirmReceipt = async (id) => {
+  // Marks the transfer as Received AND Completed in one action.
+  // The backend handles both status update and stock adjustment on this single call.
+  const handleMarkReceived = async (id) => {
     try {
       setActionLoading(id)
       await api.patch(`/transfers/${id}/confirm-receipt`)
-      toast.success(`Transfer #${id} completed — stock updated`)
+      toast.success(`Transfer #${id} marked as Received — stock updated`)
       fetchDashboard()
     } catch (err) {
-      toast.error(err.message || "Failed to confirm receipt")
+      toast.error(err.message || "Failed to mark as received")
     } finally { setActionLoading(null) }
   }
 
@@ -183,10 +185,10 @@ export default function StaffDashboard() {
       {incoming.length > 0 && (
         <Section icon={<IconInbox />} iconColor="#4338ca"
           title={`Incoming Transfers to ${branchName}`}
-          subtitle="These items are on their way to your branch. Confirm receipt once the stock physically arrives.">
-          <ActionTable rows={incoming} actionLabel="Confirm Receipt"
+          subtitle="These items are on their way to your branch. Mark as Received once the stock physically arrives — this will close the transfer and update your stock automatically.">
+          <ActionTable rows={incoming} actionLabel="Mark Received"
             actionColor="#15803d" actionBg="#dcfce7"
-            actionLoading={actionLoading} onAction={handleConfirmReceipt} />
+            actionLoading={actionLoading} onAction={handleMarkReceived} />
         </Section>
       )}
 

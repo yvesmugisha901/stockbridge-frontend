@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import PageHeader from "@/components/ui/PageHeader"
 import { api } from "@/lib/api/client"
 import toast from "react-hot-toast"
@@ -19,19 +19,35 @@ const IconSearch = () => (
   </svg>
 )
 
+const IconChevronLeft = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="15 18 9 12 15 6"/>
+  </svg>
+)
+
+const IconChevronRight = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="9 18 15 12 9 6"/>
+  </svg>
+)
+
+const PAGE_SIZE = 8
+
 export default function MyStockPage() {
-  const [stock, setStock]                       = useState([])
-  const [loading, setLoading]                   = useState(true)
+  const [stock, setStock]                           = useState([])
+  const [loading, setLoading]                       = useState(true)
   const [showOnlyViolations, setShowOnlyViolations] = useState(false)
-  const [search, setSearch]                     = useState("")
+  const [search, setSearch]                         = useState("")
+  const [page, setPage]                             = useState(0) // 0-indexed
 
   useEffect(() => { fetchStock() }, [])
+
+  // Reset to first page whenever filters change
+  useEffect(() => { setPage(0) }, [search, showOnlyViolations])
 
   async function fetchStock() {
     try {
       setLoading(true)
-      // GET /api/v1/stock — role-filtered server-side (STAFF/MANAGER see own branch only)
-      // Returns ApiResponse<Page<StockLevelResponse>>
       const res = await api.get("/stock?size=200")
       if (res?.success) {
         setStock(res.data.content || [])
@@ -45,20 +61,29 @@ export default function MyStockPage() {
     }
   }
 
-  // Use backend's isLowStock flag (preferred) with client-side fallback
   const isItemLow = (s) => s.isLowStock || s.quantityOnHand <= s.minimumThreshold
 
   const lowStockCount = stock.filter(isItemLow).length
 
-  const filteredStock = stock.filter(entry => {
-    const matchesSearch =
-      entry.itemName?.toLowerCase().includes(search.toLowerCase()) ||
-      entry.itemCode?.toLowerCase().includes(search.toLowerCase())
-    const matchesFilter = !showOnlyViolations || isItemLow(entry)
-    return matchesSearch && matchesFilter
-  })
+  // All filtered rows (used for count + pagination math)
+  const filteredStock = useMemo(() =>
+    stock.filter(entry => {
+      const matchesSearch =
+        entry.itemName?.toLowerCase().includes(search.toLowerCase()) ||
+        entry.itemCode?.toLowerCase().includes(search.toLowerCase())
+      const matchesFilter = !showOnlyViolations || isItemLow(entry)
+      return matchesSearch && matchesFilter
+    }),
+    [stock, search, showOnlyViolations]
+  )
 
-  // branchName comes from StockLevelResponse
+  // Slice for current page
+  const totalPages  = Math.max(1, Math.ceil(filteredStock.length / PAGE_SIZE))
+  const safePage    = Math.min(page, totalPages - 1)
+  const pageItems   = filteredStock.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE)
+  const startItem   = filteredStock.length === 0 ? 0 : safePage * PAGE_SIZE + 1
+  const endItem     = Math.min((safePage + 1) * PAGE_SIZE, filteredStock.length)
+
   const branchName = stock.length > 0 ? stock[0].branchName : "My Branch"
 
   return (
@@ -69,7 +94,7 @@ export default function MyStockPage() {
         subtitle="Live stock levels, reserved balances, and low stock alerts for your branch."
       />
 
-      {/* ── Low stock banner — FR-12 ── */}
+      {/* ── Low stock banner ── */}
       {!loading && lowStockCount > 0 && (
         <div style={{
           display: "flex", alignItems: "center", gap: 12,
@@ -101,7 +126,6 @@ export default function MyStockPage() {
         flexWrap: "wrap", alignItems: "center",
         justifyContent: "space-between", gap: 16,
       }}>
-        {/* Search — FR-29 */}
         <div style={{
           display: "flex", alignItems: "center", gap: 8,
           border: "1px solid #dde0d4", background: "#f7f8f4",
@@ -122,7 +146,6 @@ export default function MyStockPage() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
-          {/* Low stock toggle */}
           <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
             <input
               type="checkbox"
@@ -152,13 +175,6 @@ export default function MyStockPage() {
       </div>
 
       {/* ── Table ── */}
-      {/*
-        StockLevelResponse fields used:
-          id, itemCode, itemName, quantityOnHand, reservedQuantity,
-          minimumThreshold, isLowStock, branchName
-        NOTE: StockLevelResponse has NO unitOfMeasure field — column removed.
-        If you add unitOfMeasure to the DTO later, add it back here.
-      */}
       <div style={{ background: "#fff", border: "1px solid #dde0d4", overflow: "hidden" }}>
         {loading ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 0" }}>
@@ -197,34 +213,24 @@ export default function MyStockPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredStock.map((s, idx) => {
+              {pageItems.map((s, idx) => {
                 const low = isItemLow(s)
                 return (
                   <tr key={s.id ?? idx} style={{
-                    borderBottom: idx < filteredStock.length - 1 ? "1px solid #f0f1ec" : "none",
+                    borderBottom: idx < pageItems.length - 1 ? "1px solid #f0f1ec" : "none",
                   }}>
-
-                    {/* itemCode — from StockLevelResponse */}
                     <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>
                       {s.itemCode ?? "—"}
                     </td>
-
-                    {/* itemName */}
                     <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>
                       {s.itemName}
                     </td>
-
-                    {/* quantityOnHand — red when low */}
                     <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 600, color: low ? "#dc2626" : "#1a1f0e" }}>
                       {s.quantityOnHand}
                     </td>
-
-                    {/* reservedQuantity */}
                     <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#9ca3af" }}>
                       {s.reservedQuantity ?? 0}
                     </td>
-
-                    {/* Status badge — FR-12 */}
                     <td style={{ padding: "12px 20px" }}>
                       {low ? (
                         <span style={{
@@ -248,7 +254,6 @@ export default function MyStockPage() {
                         </span>
                       )}
                     </td>
-
                   </tr>
                 )
               })}
@@ -257,6 +262,80 @@ export default function MyStockPage() {
         )}
       </div>
 
+      {/* ── Pagination ── */}
+      {!loading && totalPages > 1 && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          flexWrap: "wrap", gap: 12, padding: "4px 0",
+        }}>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af" }}>
+            Showing {startItem}–{endItem} of {filteredStock.length}
+          </span>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <PageBtn onClick={() => setPage(p => p - 1)} disabled={safePage === 0}>
+              <IconChevronLeft />
+            </PageBtn>
+
+            {buildPageNumbers(safePage, totalPages).map((p, i) =>
+              p === "…" ? (
+                <span key={`dots-${i}`} style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#9ca3af", padding: "0 4px" }}>…</span>
+              ) : (
+                <PageBtn key={p} onClick={() => setPage(p)} active={p === safePage}>
+                  {p + 1}
+                </PageBtn>
+              )
+            )}
+
+            <PageBtn onClick={() => setPage(p => p + 1)} disabled={safePage >= totalPages - 1}>
+              <IconChevronRight />
+            </PageBtn>
+          </div>
+        </div>
+      )}
+
     </div>
+  )
+}
+
+// ─── Pagination helpers ───────────────────────────────────────────────────────
+
+function buildPageNumbers(current, total) {
+  const delta = 1
+  const range = []
+  for (let i = Math.max(0, current - delta); i <= Math.min(total - 1, current + delta); i++) {
+    range.push(i)
+  }
+  const result = []
+  if (!range.includes(0)) {
+    result.push(0)
+    if (range[0] > 1) result.push("…")
+  }
+  result.push(...range)
+  if (!range.includes(total - 1)) {
+    if (range[range.length - 1] < total - 2) result.push("…")
+    result.push(total - 1)
+  }
+  return result
+}
+
+function PageBtn({ children, onClick, disabled, active }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        minWidth: 32, height: 32,
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        border: active ? "1px solid #3d7a2b" : "1px solid #dde0d4",
+        background: active ? "#f0f7ed" : disabled ? "#f7f8f4" : "#fff",
+        color: active ? "#3d7a2b" : disabled ? "#c4c7be" : "#1a1f0e",
+        fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: active ? 700 : 400,
+        cursor: disabled ? "not-allowed" : "pointer",
+        borderRadius: 4, padding: "0 8px",
+      }}
+    >
+      {children}
+    </button>
   )
 }

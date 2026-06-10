@@ -1,5 +1,6 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
+import { useSearchParams } from "next/navigation"
 import { api } from "@/lib/api/client"
 import toast from "react-hot-toast"
 import PageHeader from "@/components/ui/PageHeader"
@@ -32,22 +33,34 @@ const IconTruck = () => (
   </svg>
 )
 
+// ─── Helper: resolve "Requested By" from multiple possible field names ────────
+function getRequestedBy(t) {
+  return (
+    t.requestedByName    ||
+    t.requestedByEmail   ||
+    t.requesterName      ||
+    t.requesterEmail     ||
+    t.requestedBy        ||
+    t.createdByName      ||
+    t.createdByEmail     ||
+    null
+  )
+}
+
 // ─── Flow Banner ──────────────────────────────────────────────────────────────
 function FlowBanner({ activeStep }) {
-  // activeStep: "approve" | "dispatch"
   const steps = [
-    { label: "Staff",     sub: "submits request",  key: null },
-    { label: "Manager",   sub: "your review",      key: "approve" },
-    { label: "HO Admin",  sub: "final approval",   key: null },
-    { label: "Dispatch",  sub: "your action",      key: "dispatch" },
-    { label: "In Transit",sub: "stock moving",     key: null },
+    { label: "Staff",      sub: "submits request", key: null },
+    { label: "Manager",    sub: "your review",     key: "approve" },
+    { label: "HO Admin",   sub: "final approval",  key: null },
+    { label: "Dispatch",   sub: "your action",     key: "dispatch" },
+    { label: "In Transit", sub: "stock moving",    key: null },
   ]
-
   return (
     <div style={{ background: "#f7f8f4", border: "1px solid #dde0d4", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
       {steps.map((s, i) => {
         const active = s.key === activeStep
-        const done   = activeStep === "dispatch" && (i < 3)
+        const done   = activeStep === "dispatch" && i < 3
         return (
           <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
@@ -82,6 +95,8 @@ function ApprovalModal({ modal, comments, setComments, onApprove, onReject, onCl
     textTransform: "uppercase", letterSpacing: "0.12em",
     color: "#9ca3af", marginBottom: 4, display: "block",
   }
+  const requestedBy = getRequestedBy(modal.transfer)
+
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: "#fff", border: "1px solid #dde0d4", padding: 28, width: "100%", maxWidth: 480, display: "flex", flexDirection: "column", gap: 20 }}>
@@ -105,6 +120,7 @@ function ApprovalModal({ modal, comments, setComments, onApprove, onReject, onCl
             ["Quantity",      modal.transfer.quantity],
             ["Requesting",    modal.transfer.destinationBranchName],
             ["Supplying",     modal.transfer.sourceBranchName],
+            ["Requested By",  requestedBy ?? "—"],
             ["Justification", modal.transfer.justification ?? "—"],
           ].map(([label, value]) => (
             <div key={label} style={{ display: "flex", gap: 12 }}>
@@ -156,13 +172,12 @@ function ApprovalModal({ modal, comments, setComments, onApprove, onReject, onCl
   )
 }
 
-// ─── Dispatch Confirm Modal ───────────────────────────────────────────────────
+// ─── Dispatch Modal ───────────────────────────────────────────────────────────
 function DispatchModal({ transfer, onClose, onConfirm, submitting }) {
   if (!transfer) return null
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ background: "#fff", border: "1px solid #dde0d4", padding: 28, width: "100%", maxWidth: 460, display: "flex", flexDirection: "column", gap: 20 }}>
-
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <h2 style={{ fontFamily: "'Inter', sans-serif", fontSize: 16, fontWeight: 700, color: "#1a1f0e", margin: 0 }}>Confirm Dispatch</h2>
@@ -170,15 +185,14 @@ function DispatchModal({ transfer, onClose, onConfirm, submitting }) {
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af" }}><IconClose /></button>
         </div>
-
         <div style={{ background: "#f7f8f4", border: "1px solid #e8ebe3", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
           {[
-            ["Request ID",  transfer.referenceNumber ?? `#${transfer.id}`],
-            ["Item",        transfer.itemName],
-            ["Item Code",   transfer.itemCode],
-            ["Quantity",    transfer.quantity],
-            ["Sending To",  transfer.destinationBranchName],
-            ["Value",       transfer.totalValue != null
+            ["Request ID", transfer.referenceNumber ?? `#${transfer.id}`],
+            ["Item",       transfer.itemName],
+            ["Item Code",  transfer.itemCode],
+            ["Quantity",   transfer.quantity],
+            ["Sending To", transfer.destinationBranchName],
+            ["Value",      transfer.totalValue != null
               ? new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(transfer.totalValue)
               : "—"],
           ].map(([label, value]) => (
@@ -188,26 +202,17 @@ function DispatchModal({ transfer, onClose, onConfirm, submitting }) {
             </div>
           ))}
         </div>
-
         {transfer.hoComments && (
           <div style={{ background: "#f0f7ed", border: "1px solid #c6dfc0", padding: "10px 14px" }}>
             <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.14em", color: "#3d7a2b", margin: "0 0 6px" }}>HO Admin Note</p>
             <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#1a1f0e", margin: 0 }}>{transfer.hoComments}</p>
           </div>
         )}
-
         <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#6b7260", margin: 0, lineHeight: 1.6 }}>
           By confirming, you acknowledge that <strong>{transfer.quantity}x {transfer.itemName}</strong> has physically left your branch and is on its way to <strong>{transfer.destinationBranchName}</strong>.
         </p>
-
         <div style={{ display: "flex", gap: 12 }}>
-          <button
-            onClick={() => onConfirm(transfer.id)}
-            disabled={submitting}
-            style={{ flex: 1, background: submitting ? "#9ca3af" : "#1a1f0e", color: "#fff", border: "none", cursor: submitting ? "wait" : "pointer", padding: "12px 24px", fontSize: 13, fontFamily: "'Inter', sans-serif", fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-            onMouseEnter={e => { if (!submitting) e.currentTarget.style.background = "#3d7a2b" }}
-            onMouseLeave={e => { if (!submitting) e.currentTarget.style.background = "#1a1f0e" }}
-          >
+          <button onClick={() => onConfirm(transfer.id)} disabled={submitting} style={{ flex: 1, background: submitting ? "#9ca3af" : "#1a1f0e", color: "#fff", border: "none", cursor: submitting ? "wait" : "pointer", padding: "12px 24px", fontSize: 13, fontFamily: "'Inter', sans-serif", fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
             <IconTruck /> {submitting ? "Dispatching..." : "Confirm Dispatch"}
           </button>
           <button onClick={onClose} disabled={submitting} style={{ background: "#fff", border: "1px solid #dde0d4", cursor: submitting ? "not-allowed" : "pointer", padding: "12px 20px", fontSize: 13, fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>
@@ -221,40 +226,51 @@ function DispatchModal({ transfer, onClose, onConfirm, submitting }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ManagerApprovalsPage() {
-  const [activeTab, setActiveTab]   = useState("approvals") // "approvals" | "dispatch"
+  // FIX: read ?id= from URL to auto-open a specific transfer for review
+  const searchParams = useSearchParams()
+  const reviewId = searchParams.get("id")
 
-  // Approvals tab state
-  const [transfers, setTransfers]   = useState([])
-  const [loadingA, setLoadingA]     = useState(true)
-  const [modal, setModal]           = useState(null)
-  const [comments, setComments]     = useState("")
-  const [submittingA, setSubmittingA] = useState(false)
+  const [activeTab, setActiveTab] = useState("approvals")
 
-  // Dispatch tab state
-  const [dispatches, setDispatches] = useState([])
-  const [loadingD, setLoadingD]     = useState(true)
-  const [dispatchModal, setDispatchModal] = useState(null)
-  const [submittingD, setSubmittingD] = useState(false)
+  const [transfers,    setTransfers]    = useState([])
+  const [loadingA,     setLoadingA]     = useState(true)
+  const [modal,        setModal]        = useState(null)
+  const [comments,     setComments]     = useState("")
+  const [submittingA,  setSubmittingA]  = useState(false)
 
-  useEffect(() => { fetchApprovals() }, [])
-  useEffect(() => { fetchDispatches() }, [])
+  const [dispatches,   setDispatches]   = useState([])
+  const [loadingD,     setLoadingD]     = useState(true)
+  const [dispatchModal,setDispatchModal]= useState(null)
+  const [submittingD,  setSubmittingD]  = useState(false)
 
-  // ── Approvals fetch ──────────────────────────────────────────────────────────
-  async function fetchApprovals() {
+  const fetchApprovals = useCallback(async () => {
     try {
       setLoadingA(true)
       const res = await api.get("/approvals/pending/manager?size=100&page=0")
-      if (res?.success) setTransfers(res.data?.content ?? [])
-      else toast.error(res?.message || "Failed to load approvals")
+      if (res?.success) {
+        const list = res.data?.content ?? []
+        setTransfers(list)
+
+        // FIX: if ?id= is present, auto-open that transfer's Approve modal
+        if (reviewId) {
+          const target = list.find(t => String(t.id) === String(reviewId))
+          if (target) {
+            setModal({ type: "approve", transfer: target })
+          } else {
+            toast.error(`Transfer #${reviewId} not found or already reviewed.`)
+          }
+        }
+      } else {
+        toast.error(res?.message || "Failed to load approvals")
+      }
     } catch (err) {
       toast.error(err.message || "Failed to fetch approvals")
     } finally {
       setLoadingA(false)
     }
-  }
+  }, [reviewId])
 
-  // ── Dispatch fetch ───────────────────────────────────────────────────────────
-  async function fetchDispatches() {
+  const fetchDispatches = useCallback(async () => {
     try {
       setLoadingD(true)
       const res = await api.get("/approvals/pending/dispatch?size=100&page=0")
@@ -265,17 +281,22 @@ export default function ManagerApprovalsPage() {
     } finally {
       setLoadingD(false)
     }
-  }
+  }, [])
+
+  useEffect(() => { fetchApprovals() }, [fetchApprovals])
+  useEffect(() => { fetchDispatches() }, [fetchDispatches])
 
   function openModal(type, transfer) { setModal({ type, transfer }); setComments("") }
   function closeModal() { if (submittingA) return; setModal(null); setComments("") }
 
-  // ── Approve ──────────────────────────────────────────────────────────────────
   async function handleApprove() {
     if (!modal) return
     try {
       setSubmittingA(true)
-      const res = await api.post(`/approvals/${modal.transfer.id}/manager-approve`, { approved: true, comments: comments.trim() || null })
+      const res = await api.post(`/approvals/${modal.transfer.id}/manager-approve`, {
+        approved: true,
+        comments: comments.trim() || null,
+      })
       if (res?.success) {
         toast.success("Approved — forwarded to HO Admin for final sign-off")
         setTransfers(prev => prev.filter(t => t.id !== modal.transfer.id))
@@ -288,13 +309,15 @@ export default function ManagerApprovalsPage() {
     }
   }
 
-  // ── Reject ───────────────────────────────────────────────────────────────────
   async function handleReject() {
     if (!modal) return
     if (!comments.trim()) { toast.error("Rejection reason is required"); return }
     try {
       setSubmittingA(true)
-      const res = await api.post(`/approvals/${modal.transfer.id}/manager-reject`, { approved: false, comments: comments.trim() })
+      const res = await api.post(`/approvals/${modal.transfer.id}/manager-reject`, {
+        approved: false,
+        comments: comments.trim(),
+      })
       if (res?.success) {
         toast.success("Transfer rejected — staff will be notified")
         setTransfers(prev => prev.filter(t => t.id !== modal.transfer.id))
@@ -307,7 +330,6 @@ export default function ManagerApprovalsPage() {
     }
   }
 
-  // ── Dispatch ─────────────────────────────────────────────────────────────────
   async function handleDispatch(id) {
     try {
       setSubmittingD(true)
@@ -324,13 +346,13 @@ export default function ManagerApprovalsPage() {
     }
   }
 
-  // ── Tab bar ──────────────────────────────────────────────────────────────────
   const tabStyle = (active) => ({
     padding: "10px 20px",
     fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: active ? 600 : 400,
     color: active ? "#1a1f0e" : "#6b7260",
-    background: "none", border: "none", borderBottom: `2px solid ${active ? "#1a1f0e" : "transparent"}`,
-    cursor: "pointer", transition: "all 0.15s",
+    background: "none", border: "none",
+    borderBottom: `2px solid ${active ? "#1a1f0e" : "transparent"}`,
+    cursor: "pointer",
   })
 
   const badgeStyle = (count) => ({
@@ -349,7 +371,6 @@ export default function ManagerApprovalsPage() {
         subtitle="Manage your branch's incoming requests and outgoing dispatch queue."
       />
 
-      {/* ── Tabs ── */}
       <div style={{ borderBottom: "1px solid #dde0d4", display: "flex", gap: 0 }}>
         <button style={tabStyle(activeTab === "approvals")} onClick={() => setActiveTab("approvals")}>
           Pending Approvals
@@ -361,7 +382,6 @@ export default function ManagerApprovalsPage() {
         </button>
       </div>
 
-      {/* ── Flow Banner ── */}
       <FlowBanner activeStep={activeTab === "approvals" ? "approve" : "dispatch"} />
 
       {/* ══ APPROVALS TAB ══════════════════════════════════════════════════════ */}
@@ -379,41 +399,59 @@ export default function ManagerApprovalsPage() {
               <tbody>
                 {transfers.length === 0 ? (
                   <tr><td colSpan={10} style={{ padding: "48px 0", textAlign: "center", fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9ca3af" }}>No pending approvals from your branch staff.</td></tr>
-                ) : transfers.map((t, idx) => (
-                  <tr key={t.id} style={{ borderBottom: idx < transfers.length - 1 ? "1px solid #f0f1ec" : "none" }}
-                    onMouseEnter={e => e.currentTarget.style.background = "#fafbf8"}
-                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                    <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>{t.referenceNumber ?? `#${t.id}`}</td>
-                    <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>{t.itemName}</td>
-                    <td style={{ padding: "12px 20px" }}>
-                      <span style={{ fontFamily: "'Inter', sans-serif", color: "#1a1f0e", fontSize: 13 }}>{t.destinationBranchName}</span>
-                      <span style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "#3d7a2b", marginTop: 2 }}>needs stock</span>
-                    </td>
-                    <td style={{ padding: "12px 20px" }}>
-                      <span style={{ fontFamily: "'Inter', sans-serif", color: "#6b7260", fontSize: 13 }}>{t.sourceBranchName}</span>
-                      <span style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9ca3af", marginTop: 2 }}>will supply</span>
-                    </td>
-                    <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>{t.quantity}</td>
-                    <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#6b7260" }}>
-                      {t.totalValue != null ? new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(t.totalValue) : "—"}
-                    </td>
-                    <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260", maxWidth: 160 }}>
-                      <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.justification ?? "—"}</span>
-                    </td>
-                    <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>{t.requestedByEmail ?? "—"}</td>
-                    <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af" }}>{t.requestedAt ? new Date(t.requestedAt).toLocaleDateString() : "—"}</td>
-                    <td style={{ padding: "12px 20px" }}>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button onClick={() => openModal("approve", t)} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#f0f7ed", color: "#3d7a2b", border: "1px solid #e1eedb", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 500, padding: "4px 10px" }}>
-                          <IconCheck /> Approve
-                        </button>
-                        <button onClick={() => openModal("reject", t)} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#fef2f2", color: "#dc2626", border: "1px solid #fee2e2", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 500, padding: "4px 10px" }}>
-                          <IconX /> Reject
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                ) : transfers.map((t, idx) => {
+                  const requestedBy = getRequestedBy(t)
+                  // Highlight the row if it matches the ?id= param
+                  const isHighlighted = String(t.id) === String(reviewId)
+                  return (
+                    <tr
+                      key={t.id}
+                      id={`transfer-row-${t.id}`}
+                      style={{
+                        borderBottom: idx < transfers.length - 1 ? "1px solid #f0f1ec" : "none",
+                        background: isHighlighted ? "#f0f7ed" : "transparent",
+                        outline: isHighlighted ? "2px solid #3d7a2b" : "none",
+                      }}
+                      onMouseEnter={e => { if (!isHighlighted) e.currentTarget.style.background = "#fafbf8" }}
+                      onMouseLeave={e => { e.currentTarget.style.background = isHighlighted ? "#f0f7ed" : "transparent" }}
+                    >
+                      <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>{t.referenceNumber ?? `#${t.id}`}</td>
+                      <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>{t.itemName}</td>
+                      <td style={{ padding: "12px 20px" }}>
+                        <span style={{ fontFamily: "'Inter', sans-serif", color: "#1a1f0e", fontSize: 13 }}>{t.destinationBranchName}</span>
+                        <span style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "#3d7a2b", marginTop: 2 }}>needs stock</span>
+                      </td>
+                      <td style={{ padding: "12px 20px" }}>
+                        <span style={{ fontFamily: "'Inter', sans-serif", color: "#6b7260", fontSize: 13 }}>{t.sourceBranchName}</span>
+                        <span style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9ca3af", marginTop: 2 }}>will supply</span>
+                      </td>
+                      <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>{t.quantity}</td>
+                      <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#6b7260" }}>
+                        {t.totalValue != null ? new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(t.totalValue) : "—"}
+                      </td>
+                      <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260", maxWidth: 160 }}>
+                        <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.justification ?? "—"}</span>
+                      </td>
+                      {/* FIX: show requestedBy with fallback chain */}
+                      <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>
+                        {requestedBy ?? <span style={{ color: "#d1d5db", fontStyle: "italic" }}>Unknown</span>}
+                      </td>
+                      <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af" }}>
+                        {t.requestedAt ? new Date(t.requestedAt).toLocaleDateString() : "—"}
+                      </td>
+                      <td style={{ padding: "12px 20px" }}>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => openModal("approve", t)} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#f0f7ed", color: "#3d7a2b", border: "1px solid #e1eedb", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 500, padding: "4px 10px" }}>
+                            <IconCheck /> Approve
+                          </button>
+                          <button onClick={() => openModal("reject", t)} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#fef2f2", color: "#dc2626", border: "1px solid #fee2e2", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 500, padding: "4px 10px" }}>
+                            <IconX /> Reject
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}
@@ -458,14 +496,13 @@ export default function ManagerApprovalsPage() {
                     <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#6b7260", maxWidth: 140 }}>
                       <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.hoComments ?? "—"}</span>
                     </td>
-                    <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af" }}>{t.requestedAt ? new Date(t.requestedAt).toLocaleDateString() : "—"}</td>
+                    <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af" }}>
+                      {t.requestedAt ? new Date(t.requestedAt).toLocaleDateString() : "—"}
+                    </td>
                     <td style={{ padding: "12px 20px" }}>
-                      <button
-                        onClick={() => setDispatchModal(t)}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#1a1f0e", color: "#fff", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 500, padding: "6px 14px", transition: "background 0.13s" }}
+                      <button onClick={() => setDispatchModal(t)} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#1a1f0e", color: "#fff", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 500, padding: "6px 14px" }}
                         onMouseEnter={e => e.currentTarget.style.background = "#3d7a2b"}
-                        onMouseLeave={e => e.currentTarget.style.background = "#1a1f0e"}
-                      >
+                        onMouseLeave={e => e.currentTarget.style.background = "#1a1f0e"}>
                         <IconTruck /> Dispatch
                       </button>
                     </td>
@@ -477,28 +514,15 @@ export default function ManagerApprovalsPage() {
         </div>
       )}
 
-      {/* ── Modals ── */}
-      <ApprovalModal
-        modal={modal}
-        comments={comments}
-        setComments={setComments}
-        onApprove={handleApprove}
-        onReject={handleReject}
-        onClose={closeModal}
-        submitting={submittingA}
-      />
-      <DispatchModal
-        transfer={dispatchModal}
-        onClose={() => setDispatchModal(null)}
-        onConfirm={handleDispatch}
-        submitting={submittingD}
-      />
+      <ApprovalModal modal={modal} comments={comments} setComments={setComments}
+        onApprove={handleApprove} onReject={handleReject} onClose={closeModal} submitting={submittingA} />
+      <DispatchModal transfer={dispatchModal} onClose={() => setDispatchModal(null)}
+        onConfirm={handleDispatch} submitting={submittingD} />
 
     </div>
   )
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function LoadingSpinner({ label }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 0" }}>

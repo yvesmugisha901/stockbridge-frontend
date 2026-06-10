@@ -1,216 +1,343 @@
-"use client";
-import { useState } from "react";
+"use client"
 
-/**
- * StockTable
- * Displays per-branch stock levels with low-stock highlighting.
- * FR-10, FR-12, FR-13
- *
- * Props:
- *   items       {Array}    - [{ id, name, code, category, unit, quantity, reserved, minThreshold, branch }]
- *   showBranch  {boolean}  - show branch column (true for HO_ADMIN/ADMIN)
- *   onAdjust    {function} - called with item when "Adjust" is clicked (HO_ADMIN only)
- */
-export default function StockTable({ items = [], showBranch = false, onAdjust }) {
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("all");
-  const [sortKey, setSortKey] = useState("name");
-  const [sortDir, setSortDir] = useState("asc");
+import { useState, useEffect } from "react"
+import PageHeader from "@/components/ui/PageHeader"
+import { api } from "@/lib/api/client"
+import toast from "react-hot-toast"
 
-  const categories = ["all", ...new Set(items.map((i) => i.category).filter(Boolean))];
+const IconAlert = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+    <line x1="12" y1="9" x2="12" y2="13"/>
+    <line x1="12" y1="17" x2="12.01" y2="17"/>
+  </svg>
+)
 
-  const filtered = items
-    .filter((i) => {
-      const q = search.toLowerCase();
-      const matchSearch =
-        !q || i.name?.toLowerCase().includes(q) || i.code?.toLowerCase().includes(q);
-      const matchCat = category === "all" || i.category === category;
-      return matchSearch && matchCat;
-    })
-    .sort((a, b) => {
-      let va = a[sortKey] ?? "";
-      let vb = b[sortKey] ?? "";
-      if (typeof va === "string") va = va.toLowerCase();
-      if (typeof vb === "string") vb = vb.toLowerCase();
-      if (va < vb) return sortDir === "asc" ? -1 : 1;
-      if (va > vb) return sortDir === "asc" ? 1 : -1;
-      return 0;
-    });
+const IconSearch = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+  </svg>
+)
 
-  function toggleSort(key) {
-    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortKey(key); setSortDir("asc"); }
+const IconChevronLeft = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="15 18 9 12 15 6"/>
+  </svg>
+)
+
+const IconChevronRight = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="9 18 15 12 9 6"/>
+  </svg>
+)
+
+const PAGE_SIZE = 20
+
+export default function MyStockPage() {
+  const [stock, setStock]                           = useState([])
+  const [loading, setLoading]                       = useState(true)
+  const [showOnlyViolations, setShowOnlyViolations] = useState(false)
+  const [search, setSearch]                         = useState("")
+  const [page, setPage]                             = useState(0) // 0-indexed to match Spring
+
+  // Reset to first page when filters change
+  useEffect(() => { setPage(0) }, [search, showOnlyViolations])
+
+  useEffect(() => { fetchStock() }, [page, showOnlyViolations])
+
+  async function fetchStock() {
+    try {
+      setLoading(true)
+      const params = new URLSearchParams({
+        page,
+        size: PAGE_SIZE,
+        ...(showOnlyViolations && { lowStock: true }),
+        ...(search.trim() && { search: search.trim() }),
+      })
+      const res = await api.get(`/stock?${params}`)
+      if (res?.success) {
+        setStock(res.data)   // full Page<> object: { content, totalElements, totalPages, number }
+      } else {
+        toast.error("Failed to load inventory")
+      }
+    } catch (err) {
+      toast.error(err.message || "Failed to fetch stock levels")
+    } finally {
+      setLoading(false)
+    }
   }
 
-  function stockStatus(item) {
-    const available = item.quantity - (item.reserved || 0);
-    if (available <= 0) return "out";
-    if (available <= item.minThreshold) return "low";
-    return "ok";
+  // Trigger search on Enter or when search clears
+  useEffect(() => {
+    if (search === "") fetchStock()
+  }, [search])
+
+  const handleSearchKeyDown = (e) => {
+    if (e.key === "Enter") { setPage(0); fetchStock() }
   }
 
-  const STATUS = {
-    ok:  { label: "In Stock",    bg: "#1a3a2a", color: "#4ade80" },
-    low: { label: "Low Stock",   bg: "#3a2a0a", color: "#fbbf24" },
-    out: { label: "Out of Stock",bg: "#3a1a1a", color: "#f87171" },
-  };
+  const content      = stock.content      ?? []
+  const totalElements = stock.totalElements ?? 0
+  const totalPages   = stock.totalPages   ?? 1
+  const currentPage  = stock.number       ?? 0
 
-  const SortIcon = ({ k }) => (
-    <span style={{ opacity: sortKey === k ? 1 : 0.3, marginLeft: "4px", fontSize: "0.7rem" }}>
-      {sortKey === k ? (sortDir === "asc" ? "↑" : "↓") : "↕"}
-    </span>
-  );
+  // Use backend's isLowStock flag with fallback
+  const isItemLow = (s) => s.isLowStock || s.quantityOnHand <= s.minimumThreshold
+
+  const lowStockCount = content.filter(isItemLow).length
+
+  const branchName = content.length > 0 ? content[0].branchName : "My Branch"
+
+  const startItem = totalElements === 0 ? 0 : currentPage * PAGE_SIZE + 1
+  const endItem   = Math.min((currentPage + 1) * PAGE_SIZE, totalElements)
 
   return (
-    <div className="st-wrap">
-      {/* Controls */}
-      <div className="st-controls">
-        <input
-          className="st-search"
-          placeholder="Search by name or code…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <select
-          className="st-select"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-        >
-          {categories.map((c) => (
-            <option key={c} value={c}>{c === "all" ? "All Categories" : c}</option>
-          ))}
-        </select>
-        <span className="st-count">{filtered.length} item{filtered.length !== 1 ? "s" : ""}</span>
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+
+      <PageHeader
+        title={`${branchName} — Inventory`}
+        subtitle="Live stock levels, reserved balances, and low stock alerts for your branch."
+      />
+
+      {/* ── Low stock banner ── */}
+      {!loading && lowStockCount > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 12,
+          background: "#fef2f2", border: "1px solid #fee2e2",
+          padding: "12px 16px",
+        }}>
+          <span style={{ color: "#dc2626", flexShrink: 0 }}><IconAlert /></span>
+          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#dc2626", fontWeight: 500, margin: 0 }}>
+            {lowStockCount} item{lowStockCount > 1 ? "s are" : " is"} below the minimum stock threshold on this page.
+          </p>
+          <button
+            onClick={() => setShowOnlyViolations(true)}
+            style={{
+              marginLeft: "auto", background: "none", border: "none",
+              cursor: "pointer", fontSize: 12, color: "#dc2626",
+              fontFamily: "'Inter', sans-serif", textDecoration: "underline",
+              flexShrink: 0,
+            }}
+          >
+            Show only
+          </button>
+        </div>
+      )}
+
+      {/* ── Filter & Search Bar ── */}
+      <div style={{
+        background: "#fff", border: "1px solid #dde0d4",
+        padding: "16px 24px", display: "flex",
+        flexWrap: "wrap", alignItems: "center",
+        justifyContent: "space-between", gap: 16,
+      }}>
+        {/* Search */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8,
+          border: "1px solid #dde0d4", background: "#f7f8f4",
+          padding: "8px 12px", minWidth: 240,
+        }}>
+          <span style={{ color: "#9ca3af", flexShrink: 0 }}><IconSearch /></span>
+          <input
+            type="text"
+            placeholder="Search by item name or code… (Enter)"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
+            style={{
+              background: "transparent", border: "none", outline: "none",
+              fontSize: 13, fontFamily: "'Inter', sans-serif",
+              color: "#1a1f0e", width: "100%",
+            }}
+          />
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+          {/* Low stock toggle */}
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={showOnlyViolations}
+              onChange={e => setShowOnlyViolations(e.target.checked)}
+              style={{ accentColor: "#dc2626", width: 15, height: 15 }}
+            />
+            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#1a1f0e" }}>
+              Low stock only
+            </span>
+          </label>
+
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af" }}>
+            {totalElements} item{totalElements !== 1 ? "s" : ""} total
+          </span>
+        </div>
       </div>
 
-      {/* Table */}
-      <div className="st-table-wrap">
-        <table className="st-table">
-          <thead>
-            <tr>
-              <th className="st-th" onClick={() => toggleSort("code")} style={{ cursor: "pointer" }}>
-                Code <SortIcon k="code" />
-              </th>
-              <th className="st-th" onClick={() => toggleSort("name")} style={{ cursor: "pointer" }}>
-                Item Name <SortIcon k="name" />
-              </th>
-              <th className="st-th">Category</th>
-              {showBranch && <th className="st-th">Branch</th>}
-              <th className="st-th st-th-right" onClick={() => toggleSort("quantity")} style={{ cursor: "pointer" }}>
-                On Hand <SortIcon k="quantity" />
-              </th>
-              <th className="st-th st-th-right">Reserved</th>
-              <th className="st-th st-th-right">Available</th>
-              <th className="st-th">Status</th>
-              {onAdjust && <th className="st-th">Action</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={onAdjust ? (showBranch ? 9 : 8) : (showBranch ? 8 : 7)} className="st-empty">
-                  No items found.
-                </td>
+      {/* ── Table ── */}
+      <div style={{ background: "#fff", border: "1px solid #dde0d4", overflow: "hidden" }}>
+        {loading ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "48px 0" }}>
+            <div style={{
+              width: 24, height: 24,
+              border: "2px solid #dde0d4",
+              borderTopColor: "#3d7a2b",
+              borderRadius: "50%",
+              animation: "sb-spin 0.7s linear infinite",
+            }} />
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+              Loading stock levels...
+            </span>
+            <style>{`@keyframes sb-spin { to { transform: rotate(360deg) } }`}</style>
+          </div>
+        ) : content.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "48px 0", fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9ca3af" }}>
+            {search || showOnlyViolations
+              ? "No items match your current filters."
+              : "No stock records found for your branch."}
+          </div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: "#f7f8f4", borderBottom: "1px solid #e8ebe3" }}>
+                {["Item Code", "Item Name", "On Hand", "Reserved", "Status"].map(h => (
+                  <th key={h} style={{
+                    textAlign: "left", padding: "10px 20px",
+                    fontFamily: "'DM Mono', monospace", fontSize: 10,
+                    textTransform: "uppercase", letterSpacing: "0.1em",
+                    color: "#9ca3af", fontWeight: 500,
+                  }}>
+                    {h}
+                  </th>
+                ))}
               </tr>
-            ) : (
-              filtered.map((item) => {
-                const status = stockStatus(item);
-                const available = item.quantity - (item.reserved || 0);
-                const s = STATUS[status];
+            </thead>
+            <tbody>
+              {content.map((s, idx) => {
+                const low = isItemLow(s)
                 return (
-                  <tr
-                    key={item.id}
-                    className={`st-row ${status === "low" ? "st-row--low" : status === "out" ? "st-row--out" : ""}`}
-                  >
-                    <td className="st-code">{item.code}</td>
-                    <td className="st-name">{item.name}</td>
-                    <td>
-                      <span className="st-cat">{item.category}</span>
+                  <tr key={s.id ?? idx} style={{
+                    borderBottom: idx < content.length - 1 ? "1px solid #f0f1ec" : "none",
+                  }}>
+                    <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>
+                      {s.itemCode ?? "—"}
                     </td>
-                    {showBranch && <td className="st-branch-cell">{item.branch}</td>}
-                    <td className="st-num">{item.quantity} {item.unit}</td>
-                    <td className="st-num st-reserved">{item.reserved || 0}</td>
-                    <td className="st-num st-available"
-                        style={{ color: available <= 0 ? "#f87171" : available <= item.minThreshold ? "#fbbf24" : "#4ade80" }}>
-                      {available}
+                    <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>
+                      {s.itemName}
                     </td>
-                    <td>
-                      <span className="st-badge" style={{ background: s.bg, color: s.color }}>
-                        {s.label}
-                      </span>
+                    <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 600, color: low ? "#dc2626" : "#1a1f0e" }}>
+                      {s.quantityOnHand}
                     </td>
-                    {onAdjust && (
-                      <td>
-                        <button className="st-adj-btn" onClick={() => onAdjust(item)}>
-                          Adjust
-                        </button>
-                      </td>
-                    )}
+                    <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#9ca3af" }}>
+                      {s.reservedQuantity ?? 0}
+                    </td>
+                    <td style={{ padding: "12px 20px" }}>
+                      {low ? (
+                        <span style={{
+                          display: "inline-flex", alignItems: "center", gap: 4,
+                          background: "#fef2f2", color: "#dc2626",
+                          border: "1px solid #fee2e2",
+                          fontFamily: "'DM Mono', monospace", fontSize: 10, fontWeight: 600,
+                          padding: "2px 8px",
+                        }}>
+                          <IconAlert /> BELOW MIN ({s.minimumThreshold})
+                        </span>
+                      ) : (
+                        <span style={{
+                          display: "inline-block",
+                          background: "#f0f7ed", color: "#3d7a2b",
+                          border: "1px solid #e1eedb",
+                          fontFamily: "'DM Mono', monospace", fontSize: 10,
+                          padding: "2px 8px",
+                        }}>
+                          SAFE — MIN {s.minimumThreshold}
+                        </span>
+                      )}
+                    </td>
                   </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
 
-      <style>{`
-        .st-wrap { font-family: 'DM Sans', sans-serif; }
-        .st-controls {
-          display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center;
-          margin-bottom: 1rem;
-        }
-        .st-search {
-          flex: 1; min-width: 180px;
-          background: #0f1623; border: 1px solid #1e2d45;
-          border-radius: 8px; padding: 0.5rem 0.85rem;
-          color: #e8edf5; font-size: 0.875rem; font-family: inherit;
-        }
-        .st-search:focus { outline: none; border-color: #3b82f6; }
-        .st-select {
-          background: #0f1623; border: 1px solid #1e2d45;
-          border-radius: 8px; padding: 0.5rem 0.8rem;
-          color: #e8edf5; font-size: 0.85rem; font-family: inherit;
-        }
-        .st-count { font-size: 0.8rem; color: #4a5568; margin-left: auto; }
-        .st-table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid #1e2d45; }
-        .st-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-        .st-table thead tr { background: #0a0e14; }
-        .st-th {
-          padding: 0.7rem 1rem; text-align: left;
-          font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
-          color: #8899b0; font-weight: 600; border-bottom: 1px solid #1e2d45;
-          user-select: none;
-        }
-        .st-th-right { text-align: right; }
-        .st-row { border-bottom: 1px solid #111927; transition: background 0.1s; }
-        .st-row:hover { background: #0f1623; }
-        .st-row--low { background: #1a1500 !important; }
-        .st-row--out { background: #1a0a0a !important; }
-        .st-table td { padding: 0.7rem 1rem; color: #cbd5e1; vertical-align: middle; }
-        .st-code { font-family: monospace; font-size: 0.78rem; color: #8899b0; }
-        .st-name { font-weight: 600; color: #e8edf5; }
-        .st-cat {
-          font-size: 0.72rem; background: #161f2e; color: #8899b0;
-          padding: 0.15rem 0.5rem; border-radius: 10px;
-        }
-        .st-num { text-align: right; font-variant-numeric: tabular-nums; }
-        .st-reserved { color: #8899b0; }
-        .st-available { font-weight: 700; }
-        .st-branch-cell { font-size: 0.82rem; color: #94a3b8; }
-        .st-badge {
-          font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em;
-          padding: 0.2rem 0.55rem; border-radius: 20px; white-space: nowrap;
-        }
-        .st-adj-btn {
-          background: transparent; border: 1px solid #1e2d45;
-          color: #8899b0; border-radius: 6px; padding: 0.25rem 0.65rem;
-          font-size: 0.75rem; cursor: pointer; transition: all 0.15s;
-          font-family: inherit;
-        }
-        .st-adj-btn:hover { border-color: #3b82f6; color: #3b82f6; }
-        .st-empty { text-align: center; padding: 2.5rem; color: #4a5568; }
-      `}</style>
+      {/* ── Pagination ── */}
+      {!loading && totalPages > 1 && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "12px 4px", flexWrap: "wrap", gap: 12,
+        }}>
+          {/* Range label */}
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af" }}>
+            Showing {startItem}–{endItem} of {totalElements}
+          </span>
+
+          {/* Page buttons */}
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {/* Prev */}
+            <PaginationBtn onClick={() => setPage(p => p - 1)} disabled={currentPage === 0}>
+              <IconChevronLeft />
+            </PaginationBtn>
+
+            {/* Page numbers */}
+            {buildPageNumbers(currentPage, totalPages).map((p, i) =>
+              p === "…" ? (
+                <span key={`ellipsis-${i}`} style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#9ca3af", padding: "0 6px" }}>…</span>
+              ) : (
+                <PaginationBtn key={p} onClick={() => setPage(p)} active={p === currentPage}>
+                  {p + 1}
+                </PaginationBtn>
+              )
+            )}
+
+            {/* Next */}
+            <PaginationBtn onClick={() => setPage(p => p + 1)} disabled={currentPage >= totalPages - 1}>
+              <IconChevronRight />
+            </PaginationBtn>
+          </div>
+        </div>
+      )}
+
     </div>
-  );
+  )
+}
+
+// ─── Pagination helpers ───────────────────────────────────────────────────────
+
+function buildPageNumbers(current, total) {
+  // Always show: first, last, current, and 1 neighbour on each side. Rest → "…"
+  const delta = 1
+  const range = []
+  const rangeWithDots = []
+
+  for (let i = Math.max(0, current - delta); i <= Math.min(total - 1, current + delta); i++) {
+    range.push(i)
+  }
+  if (!range.includes(0)) { rangeWithDots.push(0); if (range[0] > 1) rangeWithDots.push("…") }
+  rangeWithDots.push(...range)
+  if (!range.includes(total - 1)) {
+    if (range[range.length - 1] < total - 2) rangeWithDots.push("…")
+    rangeWithDots.push(total - 1)
+  }
+  return rangeWithDots
+}
+
+function PaginationBtn({ children, onClick, disabled, active }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        minWidth: 32, height: 32, display: "inline-flex",
+        alignItems: "center", justifyContent: "center",
+        border: active ? "1px solid #3d7a2b" : "1px solid #dde0d4",
+        background: active ? "#f0f7ed" : disabled ? "#f7f8f4" : "#fff",
+        color: active ? "#3d7a2b" : disabled ? "#c4c7be" : "#1a1f0e",
+        fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: active ? 700 : 400,
+        cursor: disabled ? "not-allowed" : "pointer",
+        borderRadius: 4, padding: "0 8px", transition: "all 0.1s",
+      }}
+    >
+      {children}
+    </button>
+  )
 }

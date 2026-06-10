@@ -1,9 +1,9 @@
 "use client"
 import { useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { useAuthContext } from "@/lib/context/AuthContext"
 import { api } from "@/lib/api/client"
 import toast from "react-hot-toast"
-import PageHeader from "@/components/ui/PageHeader"
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 const IconClock = () => (
@@ -63,8 +63,24 @@ const STATUS_LABEL = {
   CANCELLED: "Cancelled",
 }
 
+// ─── Helper: resolve "Requested By" from multiple possible field names ────────
+// The backend may return any of these — we try them all in order.
+function getRequestedBy(t) {
+  return (
+    t.requestedByName    ||
+    t.requestedByEmail   ||
+    t.requesterName      ||
+    t.requesterEmail     ||
+    t.requestedBy        ||
+    t.createdByName      ||
+    t.createdByEmail     ||
+    null
+  )
+}
+
 export default function ManagerDashboard() {
   const { user } = useAuthContext()
+  const router = useRouter()
 
   const branchName = user?.branchName || "Your Branch"
   const fullName   = user?.fullName   || "Manager"
@@ -108,6 +124,29 @@ export default function ManagerDashboard() {
 
   useEffect(() => { loadDashboard() }, [loadDashboard])
 
+  // ── Poll for new pending approvals every 30s (drives notification badge) ──
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get("/approvals/pending/manager?size=5&page=0")
+        if (res?.success) {
+          const incoming = res.data?.content ?? []
+          setPendingApprovals(prev => {
+            if (incoming.length > prev.length) {
+              const diff = incoming.length - prev.length
+              toast(`${diff} new transfer request${diff > 1 ? "s" : ""} awaiting your approval`, {
+                icon: "🔔",
+                duration: 5000,
+              })
+            }
+            return incoming
+          })
+        }
+      } catch { /* silent — don't disrupt the user */ }
+    }, 30_000)
+    return () => clearInterval(interval)
+  }, [])
+
   const handleMarkInTransit = async (id) => {
     try {
       setActionLoading(id)
@@ -128,6 +167,11 @@ export default function ManagerDashboard() {
     } catch (err) {
       toast.error(err.message || "Failed to confirm receipt")
     } finally { setActionLoading(null) }
+  }
+
+  // ── Navigate to approvals page and auto-focus a specific transfer ──────────
+  const handleReview = (transferId) => {
+    router.push(`/dashboard/manager/approvals?id=${transferId}`)
   }
 
   return (
@@ -170,21 +214,33 @@ export default function ManagerDashboard() {
             <Table cols={["Request", "Item", "Qty", "From → To", "Requested By", "Date", ""]}>
               {pendingApprovals.length === 0
                 ? <EmptyRow cols={7} label="No pending approvals." />
-                : pendingApprovals.map((t, i) => (
-                  <tr key={t.id} style={{ borderBottom: i < pendingApprovals.length - 1 ? "1px solid #f0f1ec" : "none" }}>
-                    <Td mono>#{t.id}</Td>
-                    <Td bold>{t.itemName}</Td>
-                    <Td>{t.quantity}</Td>
-                    <Td>{t.sourceBranchName} → {t.destinationBranchName}</Td>
-                    <Td>{t.requestedByEmail ?? "—"}</Td>
-                    <Td mono small>{t.requestedAt ? new Date(t.requestedAt).toLocaleDateString() : "—"}</Td>
-                    <td style={{ padding: "12px 20px" }}>
-                      <a href="/dashboard/manager/approvals" style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#3d7a2b", fontWeight: 600, textDecoration: "none" }}>
-                        Review →
-                      </a>
-                    </td>
-                  </tr>
-                ))}
+                : pendingApprovals.map((t, i) => {
+                    const requestedBy = getRequestedBy(t)
+                    return (
+                      <tr key={t.id} style={{ borderBottom: i < pendingApprovals.length - 1 ? "1px solid #f0f1ec" : "none" }}>
+                        <Td mono>#{t.id}</Td>
+                        <Td bold>{t.itemName}</Td>
+                        <Td>{t.quantity}</Td>
+                        <Td>{t.sourceBranchName} → {t.destinationBranchName}</Td>
+                        {/* FIX: show requestedBy with fallback chain */}
+                        <Td>{requestedBy ?? <span style={{ color: "#d1d5db", fontStyle: "italic" }}>Unknown</span>}</Td>
+                        <Td mono small>{t.requestedAt ? new Date(t.requestedAt).toLocaleDateString() : "—"}</Td>
+                        <td style={{ padding: "12px 20px" }}>
+                          {/* FIX: use router.push with transfer ID instead of static href */}
+                          <button
+                            onClick={() => handleReview(t.id)}
+                            style={{
+                              background: "none", border: "none", cursor: "pointer",
+                              fontFamily: "'Inter', sans-serif", fontSize: 12,
+                              color: "#3d7a2b", fontWeight: 600, padding: 0,
+                            }}
+                          >
+                            Review →
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
             </Table>
           )}
         </Card>
@@ -347,10 +403,6 @@ function Badge({ status }) {
       {STATUS_LABEL[status] ?? status}
     </span>
   )
-}
-
-function Th({ children }) {
-  return <th style={{ textAlign: "left", padding: "10px 20px", fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9ca3af", fontWeight: 500 }}>{children}</th>
 }
 
 function Td({ children, mono, bold, small }) {

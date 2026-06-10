@@ -3,15 +3,17 @@ import { api } from "@/lib/api/client"
 // ─────────────────────────────────────────────
 // TRANSFERS  (FR-22)
 // GET /finance/transfers
-// Backend returns PageImpl: { content: TransferResponse[], totalElements, ... }
+// Backend returns ApiResponse<Page<TransferCostResponse>>
 // ─────────────────────────────────────────────
-export async function getTransfers() {
-  const raw = await api.get("/finance/transfers")
-  // Unwrap Spring PageImpl or plain array
-  if (Array.isArray(raw)) return raw
-  if (raw?.content) return raw.content
-  if (raw?.data)    return raw.data
-  return []
+export async function getTransfers({ branchId, fromDate, toDate, status } = {}) {
+  const q = new URLSearchParams()
+  if (branchId) q.set("branchId", branchId)
+  if (fromDate) q.set("fromDate", fromDate)   // matches @RequestParam("fromDate")
+  if (toDate)   q.set("toDate",   toDate)     // matches @RequestParam("toDate")
+  if (status)   q.set("status",   status)
+  const qs = q.toString()
+  return api.get(`/finance/transfers${qs ? `?${qs}` : ""}`)
+  // Caller is responsible for unwrapping: raw.data.content (ApiResponse<Page<T>>)
 }
 
 // ─────────────────────────────────────────────
@@ -29,14 +31,17 @@ export async function updateCost(transferId, body) {
 
 // ─────────────────────────────────────────────
 // FINANCE SUMMARY  (FR-24)
-// GET /finance/summary?branchId=&from=&to=
-// Returns: FinanceSummaryResponse
+// GET /finance/summary?branchId=&fromDate=&toDate=
+// Returns: ApiResponse<FinanceSummaryResponse>
+//   { totalCost, totalTransfers, branchId, fromDate, toDate }
 // ─────────────────────────────────────────────
-export async function getFinanceSummary({ branchId, from, to } = {}) {
+export async function getFinanceSummary({ branchId, fromDate, toDate } = {}) {
   const q = new URLSearchParams()
   if (branchId) q.set("branchId", branchId)
-  if (from)     q.set("from",     from)
-  if (to)       q.set("to",       to)
+  if (fromDate) q.set("fromDate", fromDate)   // ✅ was "from" — backend expects "fromDate"
+  if (toDate)   q.set("toDate",   toDate)     // ✅ was "to"   — backend expects "toDate"
   const qs = q.toString()
   return api.get(`/finance/summary${qs ? `?${qs}` : ""}`)
+  // Caller unwraps: raw.data.totalCost, raw.data.totalTransfers
 }
+

@@ -7,18 +7,84 @@ function PrintIcon() {
   return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
 }
 
-function unwrap(raw) {
-  if (Array.isArray(raw)) return raw
+function unwrapPage(raw) {
+  if (raw?.data?.content && Array.isArray(raw.data.content)) return raw.data.content
+  if (raw?.data && Array.isArray(raw.data)) return raw.data
   if (raw?.content && Array.isArray(raw.content)) return raw.content
-  if (raw?.data    && Array.isArray(raw.data))    return raw.data
+  if (Array.isArray(raw)) return raw
   return []
 }
 
+function parseDate(raw) {
+  if (!raw) return ""
+  const normalized = raw.includes("Z") || raw.includes("+") ? raw : raw + "Z"
+  const d = new Date(normalized)
+  return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10)
+}
+
+/**
+ * Cost model:
+ *   transferValue  = monetary value of the goods being transferred (always set)
+ *   costAmount     = additional logistics costs e.g. labour, transport, insurance (optional)
+ *   totalCost      = transferValue + costAmount (if costAmount absent, totalCost = transferValue)
+ */
+function getTransferValue(t) {
+  return t.transferValue != null ? Number(t.transferValue) : 0
+}
+function getCostAmount(t) {
+  return t.costAmount != null ? Number(t.costAmount) : 0
+}
+function getTotalCost(t) {
+  return getTransferValue(t) + getCostAmount(t)
+}
+function hasCostRecorded(t) {
+  return t.costAmount != null
+}
+
+function mapRecords(data) {
+  return data.map(t => ({
+    transferId:            String(t.transferId),
+    date:                  parseDate(t.requestedAt),
+    route:                 `${t.sourceBranchName ?? ""} → ${t.destinationBranchName ?? ""}`,
+    sourceBranchName:      t.sourceBranchName      ?? "",
+    destinationBranchName: t.destinationBranchName ?? "",
+    sourceBranchId:        t.sourceBranchId        != null ? String(t.sourceBranchId)      : null,
+    destinationBranchId:   t.destinationBranchId   != null ? String(t.destinationBranchId) : null,
+    item:                  t.itemName              ?? "",
+    qty:                   t.quantity              ?? 0,
+    status:                t.status                ?? "",
+    // Cost model fields — totalCost = transferValue + costAmount (costAmount defaults to 0 if absent)
+    transferValue:         getTransferValue(t),
+    costAmount:            getCostAmount(t),   // 0 if not recorded — totalCost is always valid
+    totalCost:             getTotalCost(t),
+    currency:              t.currency  ?? "RWF",
+    costType:              t.costType  ?? "",
+    notes:                 t.costNotes ?? "",
+  }))
+}
+
 function exportCSV(rows, filename) {
-  const headers = ["Transfer ID","Branch","Cost Type","Date","Amount (RWF)","Currency","Notes"]
+  const headers = [
+    "Transfer ID", "Route", "Item", "Qty", "Status", "Date",
+    "Transfer Value (RWF)", "Cost / Logistics (RWF)", "Total Cost (RWF)",
+    "Currency", "Cost Type", "Notes",
+  ]
   const lines = [
     headers.join(","),
-    ...rows.map(r => [r.transferId, r.branch, r.costType, r.date, r.amount, r.currency, `"${r.notes || ""}"`].join(","))
+    ...rows.map(r => [
+      r.transferId,
+      `"${r.route}"`,
+      `"${r.item}"`,
+      r.qty,
+      r.status,
+      r.date || "—",
+      r.transferValue,
+      r.costAmount,   // 0 if no logistics cost — totalCost = transferValue alone
+      r.totalCost,
+      r.currency,
+      r.costType  || "—",
+      `"${r.notes || ""}"`,
+    ].join(","))
   ]
   const blob = new Blob([lines.join("\n")], { type: "text/csv" })
   const url  = URL.createObjectURL(blob)
@@ -38,29 +104,26 @@ export default function AccountantReports() {
       setLoading(true)
       setError(null)
       const raw  = await getTransfers()
-      const data = unwrap(raw)
+      const data = unwrapPage(raw)
 
-      const mapped = data.map(t => ({
-        transferId: String(t.id),
-        date:       t.requestedAt ? t.requestedAt.slice(0, 10) : "",
-        branch:     t.sourceBranchName  ?? "",
-        item:       t.itemName          ?? "",
-        qty:        t.quantity          ?? 0,
-        amount:     t.costAmount        ?? null,
-        currency:   t.currency          ?? "RWF",
-        costType:   t.costType          ?? "",
-        notes:      t.costNotes         ?? "",
-      }))
-
+      const mapped = mapRecords(data)
+      if (mapped.length > 0) {
+        console.log("[Reports] sample raw transfer:", JSON.stringify(data[0]))
+        console.log("[Reports] sample mapped record:", JSON.stringify(mapped[0]))
+      }
       setRecords(mapped)
 
-      // Derive unique branches
+      // Derive branches from full unfiltered dataset
       const seen = new Set()
       const brs  = []
       data.forEach(t => {
-        if (t.sourceBranchId && !seen.has(t.sourceBranchId)) {
+        if (t.sourceBranchId != null && !seen.has(t.sourceBranchId)) {
           seen.add(t.sourceBranchId)
           brs.push({ id: String(t.sourceBranchId), name: t.sourceBranchName })
+        }
+        if (t.destinationBranchId != null && !seen.has(t.destinationBranchId)) {
+          seen.add(t.destinationBranchId)
+          brs.push({ id: String(t.destinationBranchId), name: t.destinationBranchName })
         }
       })
       setBranches(brs)
@@ -106,3 +169,4 @@ export default function AccountantReports() {
     </div>
   )
 }
+
