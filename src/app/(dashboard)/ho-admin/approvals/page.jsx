@@ -27,7 +27,18 @@ const IconFilter = () => (
   </svg>
 )
 
-const COLS = ["ID", "Item / Category", "Route", "Qty", "Value", "Manager Notes", "Action"]
+const COLS = ["ID", "Item / Category", "Route", "Qty", "Value", "Manager Notes", "Status / Action"]
+const LS_KEY = "ho_approvals_actioned"
+
+// ── localStorage helpers ───────────────────────────────────────────────────────
+function loadActioned() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) ?? "{}") } catch { return {} }
+}
+function saveActioned(id, status, comment) {
+  const existing = loadActioned()
+  existing[id] = { status, comment, decidedAt: new Date().toISOString() }
+  localStorage.setItem(LS_KEY, JSON.stringify(existing))
+}
 
 // ── Badge ──────────────────────────────────────────────────────────────────────
 function Badge({ label, color }) {
@@ -51,7 +62,6 @@ function DetailDrawer({ transfer, defaultAction, onClose, onApprove, onReject, s
 
   useEffect(() => { setComment("") }, [transfer])
 
-  // Auto-focus textarea when opened for rejection
   useEffect(() => {
     if (defaultAction === "reject") {
       setTimeout(() => {
@@ -61,6 +71,8 @@ function DetailDrawer({ transfer, defaultAction, onClose, onApprove, onReject, s
   }, [defaultAction, transfer])
 
   if (!transfer) return null
+
+  const alreadyActioned = transfer._localStatus === "approved" || transfer._localStatus === "rejected"
 
   return (
     <>
@@ -77,9 +89,17 @@ function DetailDrawer({ transfer, defaultAction, onClose, onApprove, onReject, s
               {transfer.itemName}
             </p>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7260", padding: 4 }}>
-            <IconX />
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {alreadyActioned && (
+              <Badge
+                label={transfer._localStatus === "approved" ? "✓ Approved" : "✕ Rejected"}
+                color={transfer._localStatus === "approved" ? "green" : "red"}
+              />
+            )}
+            <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7260", padding: 4 }}>
+              <IconX />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -128,67 +148,124 @@ function DetailDrawer({ transfer, defaultAction, onClose, onApprove, onReject, s
             </div>
           )}
 
-          {/* Comment field — label reflects whether action was pre-selected */}
-          <div>
-            <label style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: "#6b7260", marginBottom: 8 }}>
-              Your Comment {defaultAction === "reject" ? <span style={{ color: "#dc2626" }}>*required</span> : "(required on rejection)"}
-            </label>
-            <textarea
-              id="ho-comment-textarea"
-              rows={3}
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder={defaultAction === "reject" ? "Reason for rejection (required)..." : "Add a comment..."}
-              style={{ width: "100%", boxSizing: "border-box", fontFamily: "'Inter', sans-serif", fontSize: 13, background: "#f7f8f4", border: `1px solid ${defaultAction === "reject" ? "#fecaca" : "#dde0d4"}`, padding: "10px 14px", color: "#1a1f0e", outline: "none", resize: "vertical", lineHeight: 1.5 }}
-              onFocus={(e) => { e.target.style.borderColor = "#3d7a2b"; e.target.style.background = "#fff" }}
-              onBlur={(e)  => { e.target.style.borderColor = defaultAction === "reject" ? "#fecaca" : "#dde0d4"; e.target.style.background = "#f7f8f4" }}
-            />
-          </div>
+          {/* Show actioned comment + decided-at if already decided */}
+          {alreadyActioned && (
+            <div style={{ background: transfer._localStatus === "approved" ? "#f0f7ed" : "#fef2f2", border: `1px solid ${transfer._localStatus === "approved" ? "#c6dfc0" : "#fecaca"}`, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.14em", color: transfer._localStatus === "approved" ? "#3d7a2b" : "#dc2626", margin: 0 }}>
+                  Your Decision
+                </p>
+                {transfer._decidedAt && (
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#9ca3af" }}>
+                    {new Date(transfer._decidedAt).toLocaleString()}
+                  </span>
+                )}
+              </div>
+              {transfer._localComment && (
+                <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#1a1f0e", margin: 0, lineHeight: 1.6 }}>
+                  "{transfer._localComment}"
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Comment field — hidden once actioned */}
+          {!alreadyActioned && (
+            <div>
+              <label style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: "#6b7260", marginBottom: 8 }}>
+                Your Comment {defaultAction === "reject" ? <span style={{ color: "#dc2626" }}>*required</span> : "(required on rejection)"}
+              </label>
+              <textarea
+                id="ho-comment-textarea"
+                rows={3}
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder={defaultAction === "reject" ? "Reason for rejection (required)..." : "Add a comment..."}
+                style={{ width: "100%", boxSizing: "border-box", fontFamily: "'Inter', sans-serif", fontSize: 13, background: "#f7f8f4", border: `1px solid ${defaultAction === "reject" ? "#fecaca" : "#dde0d4"}`, padding: "10px 14px", color: "#1a1f0e", outline: "none", resize: "vertical", lineHeight: 1.5 }}
+                onFocus={(e) => { e.target.style.borderColor = "#3d7a2b"; e.target.style.background = "#fff" }}
+                onBlur={(e)  => { e.target.style.borderColor = defaultAction === "reject" ? "#fecaca" : "#dde0d4"; e.target.style.background = "#f7f8f4" }}
+              />
+            </div>
+          )}
         </div>
 
-        {/* Actions */}
-        <div style={{ padding: "16px 24px", borderTop: "1px solid #e8ebe3", display: "flex", gap: 10 }}>
-          <button
-            onClick={() => onApprove(transfer.id, comment)}
-            disabled={submitting}
-            style={{ flex: 1, background: submitting ? "#9ca3af" : "#3d7a2b", color: "#fff", border: "none", padding: "12px", cursor: submitting ? "wait" : "pointer", fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "background 0.15s" }}
-            onMouseEnter={(e) => { if (!submitting) e.currentTarget.style.background = "#2a5a1e" }}
-            onMouseLeave={(e) => { if (!submitting) e.currentTarget.style.background = "#3d7a2b" }}
-          >
-            <IconCheck /> {submitting ? "Processing..." : "Approve"}
-          </button>
-          <button
-            onClick={() => onReject(transfer.id, comment)}
-            disabled={submitting}
-            style={{ flex: 1, background: "#fff", color: "#dc2626", border: "1px solid #dc2626", padding: "12px", cursor: submitting ? "wait" : "pointer", fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "background 0.15s" }}
-            onMouseEnter={(e) => { if (!submitting) e.currentTarget.style.background = "#fef2f2" }}
-            onMouseLeave={(e) => { if (!submitting) e.currentTarget.style.background = "#fff" }}
-          >
-            <IconX /> Reject
-          </button>
-        </div>
+        {/* Actions — hidden once actioned */}
+        {alreadyActioned ? (
+          <div style={{ padding: "16px 24px", borderTop: "1px solid #e8ebe3" }}>
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#6b7260", margin: 0, textAlign: "center" }}>
+              This transfer has been <strong>{transfer._localStatus}</strong>.
+            </p>
+          </div>
+        ) : (
+          <div style={{ padding: "16px 24px", borderTop: "1px solid #e8ebe3", display: "flex", gap: 10 }}>
+            <button
+              onClick={() => onApprove(transfer.id, comment)}
+              disabled={submitting}
+              style={{ flex: 1, background: submitting ? "#9ca3af" : "#3d7a2b", color: "#fff", border: "none", padding: "12px", cursor: submitting ? "wait" : "pointer", fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "background 0.15s" }}
+              onMouseEnter={(e) => { if (!submitting) e.currentTarget.style.background = "#2a5a1e" }}
+              onMouseLeave={(e) => { if (!submitting) e.currentTarget.style.background = "#3d7a2b" }}
+            >
+              <IconCheck /> {submitting ? "Processing..." : "Approve"}
+            </button>
+            <button
+              onClick={() => onReject(transfer.id, comment)}
+              disabled={submitting}
+              style={{ flex: 1, background: "#fff", color: "#dc2626", border: "1px solid #dc2626", padding: "12px", cursor: submitting ? "wait" : "pointer", fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "background 0.15s" }}
+              onMouseEnter={(e) => { if (!submitting) e.currentTarget.style.background = "#fef2f2" }}
+              onMouseLeave={(e) => { if (!submitting) e.currentTarget.style.background = "#fff" }}
+            >
+              <IconX /> Reject
+            </button>
+          </div>
+        )}
       </div>
     </>
   )
 }
 
+// ── Status cell for actioned rows ──────────────────────────────────────────────
+function ActionedStatus({ status }) {
+  const isApproved = status === "approved"
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 5,
+      fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase",
+      letterSpacing: "0.12em", padding: "4px 10px",
+      background: isApproved ? "#f0f7ed" : "#fef2f2",
+      color: isApproved ? "#3d7a2b" : "#dc2626",
+      border: `1px solid ${isApproved ? "#c6dfc0" : "#fecaca"}`,
+    }}>
+      {isApproved ? <IconCheck /> : <IconX />}
+      {isApproved ? "Approved" : "Rejected"}
+    </span>
+  )
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function HOApprovalsPage() {
-  const [transfers, setTransfers] = useState([])
-  const [selected,  setSelected]  = useState(null)
-  const [defaultAction, setDefaultAction] = useState(null) // "approve" | "reject" | null
-  const [search,    setSearch]    = useState("")
-  const [loading,   setLoading]   = useState(true)
-  const [submitting,setSubmitting]= useState(false)
-  const [done,      setDone]      = useState([])
-  const [error,     setError]     = useState(null)
+  const [transfers, setTransfers]        = useState([])
+  const [selected,  setSelected]         = useState(null)
+  const [defaultAction, setDefaultAction]= useState(null)
+  const [search,    setSearch]           = useState("")
+  const [loading,   setLoading]          = useState(true)
+  const [submitting,setSubmitting]       = useState(false)
+  const [error,     setError]            = useState(null)
 
+  // ── Fetch + rehydrate persisted decisions ───────────────────────────────────
   useEffect(() => {
     async function load() {
       try {
         setLoading(true)
         const res = await api.get("/approvals/pending/head-office?size=100&page=0&sort=requestedAt,desc")
-        setTransfers(res?.data?.content ?? [])
+        const content = res?.data?.content ?? []
+        const persisted = loadActioned()
+        // Merge any saved decisions back onto rows so they survive refresh
+        const hydrated = content.map((t) =>
+          persisted[t.id]
+            ? { ...t, _localStatus: persisted[t.id].status, _localComment: persisted[t.id].comment, _decidedAt: persisted[t.id].decidedAt }
+            : t
+        )
+        setTransfers(hydrated)
       } catch (err) {
         setError(err.message)
         toast.error("Failed to load approvals")
@@ -199,7 +276,18 @@ export default function HOApprovalsPage() {
     load()
   }, [])
 
-  const filtered = transfers.filter((t) => {
+  // Keep drawer in sync when transfers update
+  useEffect(() => {
+    if (selected) {
+      const updated = transfers.find((t) => t.id === selected.id)
+      if (updated) setSelected(updated)
+    }
+  }, [transfers])
+
+  const pending  = transfers.filter((t) => !t._localStatus)
+  const actioned = transfers.filter((t) =>  t._localStatus)
+
+  const filteredPending = pending.filter((t) => {
     if (!search) return true
     const q = search.toLowerCase()
     return (
@@ -211,6 +299,8 @@ export default function HOApprovalsPage() {
     )
   })
 
+  const visibleActioned = search ? [] : actioned
+
   function openDrawer(transfer, action = null) {
     setSelected(transfer)
     setDefaultAction(action)
@@ -221,12 +311,21 @@ export default function HOApprovalsPage() {
     setDefaultAction(null)
   }
 
+  function markTransfer(id, status, comment) {
+    const decidedAt = new Date().toISOString()
+    saveActioned(id, status, comment)   // persist to localStorage
+    setTransfers((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, _localStatus: status, _localComment: comment, _decidedAt: decidedAt } : t
+      )
+    )
+  }
+
   async function handleApprove(id, comment) {
     try {
       setSubmitting(true)
       await api.post(`/approvals/${id}/ho-approve`, { approved: true, comments: comment })
-      setDone((d) => [...d, { id, status: "approved" }])
-      setTransfers((prev) => prev.filter((t) => t.id !== id))
+      markTransfer(id, "approved", comment)
       closeDrawer()
       toast.success(`Transfer #${id} approved`)
     } catch (err) {
@@ -244,8 +343,7 @@ export default function HOApprovalsPage() {
     try {
       setSubmitting(true)
       await api.post(`/approvals/${id}/ho-reject`, { approved: false, comments: comment })
-      setDone((d) => [...d, { id, status: "rejected" }])
-      setTransfers((prev) => prev.filter((t) => t.id !== id))
+      markTransfer(id, "rejected", comment)
       closeDrawer()
       toast.success(`Transfer #${id} rejected`)
     } catch (err) {
@@ -255,29 +353,111 @@ export default function HOApprovalsPage() {
     }
   }
 
+  function renderRow(t, i, arr, dimmed = false) {
+    const isActioned = !!t._localStatus
+    return (
+      <div
+        key={t.id}
+        style={{
+          display: "grid",
+          gridTemplateColumns: "80px 1fr 1fr 70px 110px 1fr 140px",
+          padding: "14px 20px",
+          borderBottom: i < arr.length - 1 ? "1px solid #f0f1ec" : "none",
+          gap: 8,
+          alignItems: "center",
+          transition: "background 0.12s",
+          opacity: dimmed ? 0.65 : 1,
+          background: isActioned
+            ? (t._localStatus === "approved" ? "#fafcf9" : "#fff9f9")
+            : "transparent",
+        }}
+        onMouseEnter={(e) => { if (!isActioned) e.currentTarget.style.background = "#fafbf8" }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = isActioned ? (t._localStatus === "approved" ? "#fafcf9" : "#fff9f9") : "transparent" }}
+      >
+        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#3d7a2b", fontWeight: 600 }}>
+          #{t.id}
+        </span>
+
+        <div>
+          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 500, color: "#1a1f0e", margin: "0 0 2px" }}>{t.itemName}</p>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9ca3af" }}>{t.itemCode}</span>
+        </div>
+
+        <div>
+          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#1a1f0e", margin: "0 0 2px" }}>{t.sourceBranchName}</p>
+          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#6b7260", margin: 0 }}>→ {t.destinationBranchName}</p>
+        </div>
+
+        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 500, color: "#1a1f0e" }}>{t.quantity}</span>
+
+        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#1a1f0e" }}>
+          {t.totalValue != null
+            ? new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(t.totalValue)
+            : "—"}
+        </span>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <Badge label="Mgr Approved" color="green" />
+          {t.managerComments && (
+            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#6b7260", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160 }}>
+              {t.managerComments}
+            </span>
+          )}
+        </div>
+
+        {isActioned ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <ActionedStatus status={t._localStatus} />
+            <button
+              onClick={() => openDrawer(t)}
+              title="View details"
+              style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 4, display: "flex", alignItems: "center" }}
+              onMouseEnter={(e) => e.currentTarget.style.color = "#6b7260"}
+              onMouseLeave={(e) => e.currentTarget.style.color = "#9ca3af"}
+            >
+              <IconEye />
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              onClick={() => openDrawer(t)}
+              title="Review details"
+              style={{ background: "#f7f8f4", border: "1px solid #dde0d4", cursor: "pointer", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7260", transition: "border-color 0.13s, color 0.13s" }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#3d7a2b"; e.currentTarget.style.color = "#3d7a2b" }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#dde0d4"; e.currentTarget.style.color = "#6b7260" }}
+            >
+              <IconEye />
+            </button>
+            <button
+              onClick={() => openDrawer(t, "approve")}
+              disabled={submitting}
+              title="Approve"
+              style={{ background: "#f0f7ed", border: "1px solid #c6dfc0", cursor: submitting ? "wait" : "pointer", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: "#3d7a2b", transition: "background 0.13s" }}
+              onMouseEnter={(e) => { if (!submitting) e.currentTarget.style.background = "#e4f0df" }}
+              onMouseLeave={(e) => { if (!submitting) e.currentTarget.style.background = "#f0f7ed" }}
+            >
+              <IconCheck />
+            </button>
+            <button
+              onClick={() => openDrawer(t, "reject")}
+              title="Reject (requires comment)"
+              style={{ background: "#fef2f2", border: "1px solid #fecaca", cursor: "pointer", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: "#dc2626", transition: "background 0.13s" }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "#fee2e2"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "#fef2f2"}
+            >
+              <IconX />
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <>
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        <PageHeader
-          title="Final Approvals"
-          subtitle="Level 2 review — approve or reject manager-approved transfer requests."
-        />
-
-        {/* Action history */}
-        {done.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {done.map(({ id, status }) => (
-              <div key={`${id}-${status}`} style={{ display: "flex", alignItems: "center", gap: 10, background: status === "approved" ? "#f0f7ed" : "#fef2f2", border: `1px solid ${status === "approved" ? "#c6dfc0" : "#fecaca"}`, padding: "10px 16px" }}>
-                <span style={{ color: status === "approved" ? "#3d7a2b" : "#dc2626" }}>
-                  {status === "approved" ? <IconCheck /> : <IconX />}
-                </span>
-                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#1a1f0e" }}>
-                  Transfer #{id} — <strong>{status}</strong>
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+        <PageHeader title="Final Approvals" />
 
         {/* Toolbar */}
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -298,21 +478,19 @@ export default function HOApprovalsPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#6b7260" }}>
             <IconFilter />
             <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em" }}>
-              {loading ? "Loading..." : `${filtered.length} pending`}
+              {loading ? "Loading..." : `${filteredPending.length} pending${actioned.length > 0 ? ` · ${actioned.length} actioned` : ""}`}
             </span>
           </div>
         </div>
 
         {/* Table */}
         <div style={{ background: "#fff", border: "1px solid #dde0d4", overflow: "hidden" }}>
-          {/* Header */}
-          <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr 70px 110px 1fr 120px", padding: "10px 20px", background: "#f7f8f4", borderBottom: "1px solid #dde0d4", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr 70px 110px 1fr 140px", padding: "10px 20px", background: "#f7f8f4", borderBottom: "1px solid #dde0d4", gap: 8 }}>
             {COLS.map((h) => (
               <span key={h} style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.14em", color: "#9ca3af" }}>{h}</span>
             ))}
           </div>
 
-          {/* Body */}
           {loading ? (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "48px 0" }}>
               <div style={{ width: 20, height: 20, border: "2px solid #dde0d4", borderTopColor: "#3d7a2b", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
@@ -323,85 +501,26 @@ export default function HOApprovalsPage() {
             <div style={{ padding: "48px 20px", textAlign: "center", fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#dc2626" }}>
               {error}
             </div>
-          ) : filtered.length === 0 ? (
+          ) : filteredPending.length === 0 && visibleActioned.length === 0 ? (
             <div style={{ padding: "48px 20px", textAlign: "center" }}>
               <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: "#9ca3af", margin: 0 }}>
                 {search ? "No transfers match your search." : "No transfers awaiting final approval."}
               </p>
             </div>
           ) : (
-            filtered.map((t, i) => (
-              <div
-                key={t.id}
-                style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr 70px 110px 1fr 120px", padding: "14px 20px", borderBottom: i < filtered.length - 1 ? "1px solid #f0f1ec" : "none", gap: 8, alignItems: "center", transition: "background 0.12s" }}
-                onMouseEnter={(e) => e.currentTarget.style.background = "#fafbf8"}
-                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-              >
-                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#3d7a2b", fontWeight: 600 }}>
-                  #{t.id}
-                </span>
+            <>
+              {filteredPending.map((t, i) => renderRow(t, i, filteredPending))}
 
-                <div>
-                  <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 500, color: "#1a1f0e", margin: "0 0 2px" }}>{t.itemName}</p>
-                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9ca3af" }}>{t.itemCode}</span>
+              {filteredPending.length > 0 && visibleActioned.length > 0 && (
+                <div style={{ padding: "8px 20px", background: "#f7f8f4", borderTop: "1px solid #dde0d4", borderBottom: "1px solid #dde0d4" }}>
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.14em", color: "#9ca3af" }}>
+                    Actioned
+                  </span>
                 </div>
+              )}
 
-                <div>
-                  <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#1a1f0e", margin: "0 0 2px" }}>{t.sourceBranchName}</p>
-                  <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#6b7260", margin: 0 }}>→ {t.destinationBranchName}</p>
-                </div>
-
-                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 500, color: "#1a1f0e" }}>{t.quantity}</span>
-
-                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#1a1f0e" }}>
-                  {t.totalValue != null
-                    ? new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(t.totalValue)
-                    : "—"}
-                </span>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <Badge label="Mgr Approved" color="green" />
-                  {t.managerComments && (
-                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#6b7260", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160 }}>
-                      {t.managerComments}
-                    </span>
-                  )}
-                </div>
-
-                {/* Actions — FIX 1: approve opens drawer instead of firing blank
-                            FIX 2: reject passes "reject" so textarea auto-focuses */}
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button
-                    onClick={() => openDrawer(t)}
-                    title="Review details"
-                    style={{ background: "#f7f8f4", border: "1px solid #dde0d4", cursor: "pointer", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7260", transition: "border-color 0.13s, color 0.13s" }}
-                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#3d7a2b"; e.currentTarget.style.color = "#3d7a2b" }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#dde0d4"; e.currentTarget.style.color = "#6b7260" }}
-                  >
-                    <IconEye />
-                  </button>
-                  <button
-                    onClick={() => openDrawer(t, "approve")}
-                    disabled={submitting}
-                    title="Approve (opens review)"
-                    style={{ background: "#f0f7ed", border: "1px solid #c6dfc0", cursor: submitting ? "wait" : "pointer", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: "#3d7a2b", transition: "background 0.13s" }}
-                    onMouseEnter={(e) => { if (!submitting) e.currentTarget.style.background = "#e4f0df" }}
-                    onMouseLeave={(e) => { if (!submitting) e.currentTarget.style.background = "#f0f7ed" }}
-                  >
-                    <IconCheck />
-                  </button>
-                  <button
-                    onClick={() => openDrawer(t, "reject")}
-                    title="Reject (requires comment)"
-                    style={{ background: "#fef2f2", border: "1px solid #fecaca", cursor: "pointer", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: "#dc2626", transition: "background 0.13s" }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = "#fee2e2"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = "#fef2f2"}
-                  >
-                    <IconX />
-                  </button>
-                </div>
-              </div>
-            ))
+              {visibleActioned.map((t, i) => renderRow(t, i, visibleActioned, true))}
+            </>
           )}
         </div>
       </div>

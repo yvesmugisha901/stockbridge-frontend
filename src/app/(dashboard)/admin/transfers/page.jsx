@@ -4,13 +4,6 @@ import PageHeader from "@/components/ui/PageHeader"
 import { api } from "@/lib/api/client"
 import toast from "react-hot-toast"
 
-// TransferResponse exact fields:
-// id, sourceBranchId, sourceBranchName, destinationBranchId, destinationBranchName,
-// itemId, itemName, itemCode, quantity, totalValue, justification, status,
-// requiresHoApproval (boolean primitive → "requiresHoApproval" in JSON),
-// managerComments, hoComments, requestedByEmail,
-// requestedAt, dispatchedAt, receivedAt  (all LocalDateTime)
-
 const PAGE_SIZE = 25
 
 const STATUS_META = {
@@ -30,20 +23,17 @@ const IconSearch = () => (
     <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
   </svg>
 )
-
 const IconRefresh = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="23 4 23 10 17 10"/>
     <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
   </svg>
 )
-
 const IconChevron = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="9 18 15 12 9 6"/>
   </svg>
 )
-
 const IconClose = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -57,7 +47,6 @@ function formatDate(dt) {
     month: "short", day: "numeric", year: "numeric",
   })
 }
-
 function formatDateTime(dt) {
   if (!dt) return "—"
   return new Date(dt).toLocaleString("en-US", {
@@ -65,12 +54,22 @@ function formatDateTime(dt) {
     hour: "2-digit", minute: "2-digit",
   })
 }
-
 function formatCurrency(val) {
   if (val == null) return "—"
   return new Intl.NumberFormat("en-RW", {
     style: "currency", currency: "RWF", maximumFractionDigits: 0,
   }).format(val)
+}
+
+// Handles both Spring page shapes:
+//   old: { content, totalElements, totalPages }
+//   new: { content, page: { totalElements, totalPages } }
+function extractPage(payload) {
+  return {
+    content:       payload?.content ?? [],
+    totalPages:    payload?.page?.totalPages    ?? payload?.totalPages    ?? 0,
+    totalElements: payload?.page?.totalElements ?? payload?.totalElements ?? 0,
+  }
 }
 
 function getPageWindow(current, total) {
@@ -112,8 +111,8 @@ function SummaryCard({ label, value, accent, sub }) {
       padding: "16px 20px", display: "flex", flexDirection: "column", gap: 4,
     }}>
       <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.12em", color: "#9ca3af" }}>{label}</span>
-      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 22, fontWeight: 700, color: accent ?? "#1a1f0e", lineHeight: 1 }}>{value}</span>
-      {sub && <span style={{ fontFamily: "'Geist', sans-serif", fontSize: 11, color: "#9ca3af" }}>{sub}</span>}
+      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 22, fontWeight: 700, color: accent ?? "#1a1f0e", lineHeight: 1 }}>{value ?? "—"}</span>
+      {sub && <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9ca3af" }}>{sub}</span>}
     </div>
   )
 }
@@ -137,21 +136,17 @@ function PagBtn({ label, onClick, disabled, active }) {
 // ── Detail Drawer ─────────────────────────────────────────────
 function DetailDrawer({ transfer: t, onClose }) {
   if (!t) return null
-  const meta = STATUS_META[t.status] ?? STATUS_META.CANCELLED
 
   const Row = ({ label, value, mono }) => (
     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
       <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9ca3af" }}>{label}</span>
-      <span style={{ fontFamily: mono ? "'DM Mono', monospace" : "'Geist', sans-serif", fontSize: 13, color: "#1a1f0e" }}>{value ?? "—"}</span>
+      <span style={{ fontFamily: mono ? "'DM Mono', monospace" : "'Inter', sans-serif", fontSize: 13, color: "#1a1f0e" }}>{value ?? "—"}</span>
     </div>
   )
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", justifyContent: "flex-end" }}>
-      {/* Backdrop */}
       <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(10,14,10,0.4)", backdropFilter: "blur(2px)" }} />
-
-      {/* Panel */}
       <div style={{
         position: "relative", width: "100%", maxWidth: 480,
         background: "#fff", borderLeft: "1px solid #dde0d4",
@@ -164,7 +159,7 @@ function DetailDrawer({ transfer: t, onClose }) {
             <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.12em", color: "#9ca3af", margin: "0 0 4px" }}>
               Transfer #{t.id}
             </p>
-            <h3 style={{ fontFamily: "'Geist', sans-serif", fontSize: 15, fontWeight: 700, color: "#1a1f0e", margin: "0 0 6px" }}>
+            <h3 style={{ fontFamily: "'Inter', sans-serif", fontSize: 15, fontWeight: 700, color: "#1a1f0e", margin: "0 0 6px" }}>
               {t.itemName}
             </h3>
             <StatusBadge status={t.status} />
@@ -176,14 +171,13 @@ function DetailDrawer({ transfer: t, onClose }) {
 
         {/* Body */}
         <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 20, flex: 1 }}>
-
           {/* Route */}
           <section>
             <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.12em", color: "#3d7a2b", margin: "0 0 10px" }}>Transfer Route</p>
             <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#f7f8f4", border: "1px solid #e8ebe3", padding: "12px 16px" }}>
-              <span style={{ fontFamily: "'Geist', sans-serif", fontSize: 13, fontWeight: 600, color: "#1a1f0e" }}>{t.sourceBranchName}</span>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: "#1a1f0e" }}>{t.sourceBranchName}</span>
               <span style={{ color: "#9ca3af", fontSize: 16 }}>→</span>
-              <span style={{ fontFamily: "'Geist', sans-serif", fontSize: 13, fontWeight: 600, color: "#1a1f0e" }}>{t.destinationBranchName}</span>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: "#1a1f0e" }}>{t.destinationBranchName}</span>
             </div>
           </section>
 
@@ -191,9 +185,9 @@ function DetailDrawer({ transfer: t, onClose }) {
           <section>
             <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.12em", color: "#3d7a2b", margin: "0 0 10px" }}>Item Details</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <Row label="Item Name"  value={t.itemName} />
-              <Row label="Item Code"  value={t.itemCode} mono />
-              <Row label="Quantity"   value={t.quantity} mono />
+              <Row label="Item Name"   value={t.itemName} />
+              <Row label="Item Code"   value={t.itemCode} mono />
+              <Row label="Quantity"    value={t.quantity} mono />
               <Row label="Total Value" value={formatCurrency(t.totalValue)} mono />
             </div>
           </section>
@@ -206,19 +200,13 @@ function DetailDrawer({ transfer: t, onClose }) {
               <Row label="Requested By"         value={t.requestedByEmail} />
             </div>
             {t.justification && (
-              <div style={{ marginTop: 12 }}>
-                <Row label="Justification" value={t.justification} />
-              </div>
+              <div style={{ marginTop: 12 }}><Row label="Justification" value={t.justification} /></div>
             )}
             {t.managerComments && (
-              <div style={{ marginTop: 12 }}>
-                <Row label="Manager Comments" value={t.managerComments} />
-              </div>
+              <div style={{ marginTop: 12 }}><Row label="Manager Comments" value={t.managerComments} /></div>
             )}
             {t.hoComments && (
-              <div style={{ marginTop: 12 }}>
-                <Row label="HO Comments" value={t.hoComments} />
-              </div>
+              <div style={{ marginTop: 12 }}><Row label="HO Comments" value={t.hoComments} /></div>
             )}
           </section>
 
@@ -254,41 +242,38 @@ export default function AllTransfersPage() {
   const [loading,    setLoading]    = useState(true)
   const [error,      setError]      = useState(null)
 
-  // Filters — FR-29, FR-30, FR-31
   const [search,       setSearch]       = useState("")
   const [statusFilter, setStatusFilter] = useState("")
   const [branchFilter, setBranchFilter] = useState("")
+  const [selected,     setSelected]     = useState(null)
 
-  // Detail drawer
-  const [selected, setSelected] = useState(null)
-
-  // Load branch list for filter dropdown
   useEffect(() => {
     api.get("/branches?size=100&sort=name,asc")
-      .then(res => setBranches(res?.data?.content ?? []))
+      .then(res => {
+        const d = res?.data
+        // Handles ApiResponse<Page<Branch>> and ApiResponse<List<Branch>>
+        setBranches(Array.isArray(d) ? d : d?.content ?? [])
+      })
       .catch(() => {})
   }, [])
 
   const load = useCallback(async (pageNum, opts = {}) => {
     setLoading(true); setError(null)
     try {
-      // sort by "requestedAt" — direct field on TransferRequest entity
       const params = new URLSearchParams({
         page: String(pageNum),
         size: String(PAGE_SIZE),
         sort: "requestedAt,desc",
       })
-      if (opts.search)       params.set("search",   opts.search)
+      // search is client-side only — backend has no search param
       if (opts.statusFilter) params.set("status",   opts.statusFilter)
       if (opts.branchFilter) params.set("branchId", opts.branchFilter)
 
-      // GET /api/v1/transfers
-      // Returns: ApiResponse<Page<TransferResponse>>
-      const res     = await api.get(`/transfers?${params}`)
-      const payload = res?.data
-      setTransfers(payload?.content        ?? [])
-      setTotalPages(payload?.totalPages    ?? 0)
-      setTotalItems(payload?.totalElements ?? 0)
+      const res = await api.get(`/transfers?${params}`)
+      const { content, totalPages, totalElements } = extractPage(res?.data)
+      setTransfers(content)
+      setTotalPages(totalPages)
+      setTotalItems(totalElements)
     } catch (err) {
       const msg = err?.response?.data?.message ?? err.message ?? "Unknown error"
       setError(msg)
@@ -300,7 +285,7 @@ export default function AllTransfersPage() {
 
   useEffect(() => {
     load(page, { search, statusFilter, branchFilter })
-  }, [load, page, search, statusFilter, branchFilter])
+  }, [load, page, statusFilter, branchFilter])
 
   function applyFilter(key, value) {
     setPage(0)
@@ -315,7 +300,20 @@ export default function AllTransfersPage() {
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
-  // Derived counts for summary cards
+  // Client-side search applied over current page
+  const displayRows = search.trim()
+    ? transfers.filter(t => {
+        const q = search.trim().toLowerCase()
+        return (
+          t.itemName?.toLowerCase().includes(q) ||
+          t.itemCode?.toLowerCase().includes(q) ||
+          t.requestedByEmail?.toLowerCase().includes(q) ||
+          t.sourceBranchName?.toLowerCase().includes(q) ||
+          t.destinationBranchName?.toLowerCase().includes(q)
+        )
+      })
+    : transfers
+
   const pending   = transfers.filter(t => t.status === "PENDING").length
   const inTransit = transfers.filter(t => t.status === "IN_TRANSIT").length
   const rejected  = transfers.filter(t => t.status === "REJECTED").length
@@ -324,28 +322,24 @@ export default function AllTransfersPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <PageHeader
-        title="All Transfers"
-        subtitle="Read-only view of every inter-branch stock transfer across the system."
-      />
+      <PageHeader title="All Transfers" />
 
-      {/* ── Summary Cards ── */}
+      {/* Summary Cards */}
       {!loading && !error && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
-          <SummaryCard label="Total"      value={totalItems}  sub="all time" />
-          <SummaryCard label="Pending"    value={pending}     accent={pending > 0 ? "#b45309" : "#3d7a2b"} sub="awaiting action" />
-          <SummaryCard label="In Transit" value={inTransit}   accent={inTransit > 0 ? "#4338ca" : "#1a1f0e"} sub="currently moving" />
-          <SummaryCard label="Rejected"   value={rejected}    accent={rejected > 0 ? "#dc2626" : "#1a1f0e"} sub="this page" />
+          <SummaryCard label="Total"      value={totalItems.toLocaleString()} sub="all time" />
+          <SummaryCard label="Pending"    value={pending}   accent={pending > 0 ? "#b45309" : "#3d7a2b"}   sub="awaiting action" />
+          <SummaryCard label="In Transit" value={inTransit} accent={inTransit > 0 ? "#4338ca" : "#1a1f0e"} sub="currently moving" />
+          <SummaryCard label="Rejected"   value={rejected}  accent={rejected > 0 ? "#dc2626" : "#1a1f0e"}  sub="this page" />
         </div>
       )}
 
-      {/* ── Filters — FR-29, FR-30, FR-31 ── */}
+      {/* Filters */}
       <div style={{
         background: "#fff", border: "1px solid #dde0d4",
         padding: "14px 20px", display: "flex",
         flexWrap: "wrap", alignItems: "center", gap: 12,
       }}>
-        {/* Search — FR-29 */}
         <div style={{
           display: "flex", alignItems: "center", gap: 8,
           border: "1px solid #dde0d4", background: "#f7f8f4",
@@ -359,18 +353,20 @@ export default function AllTransfersPage() {
             onChange={e => applyFilter("search", e.target.value)}
             style={{
               background: "transparent", border: "none", outline: "none",
-              fontSize: 13, fontFamily: "'Geist', sans-serif",
+              fontSize: 13, fontFamily: "'Inter', sans-serif",
               color: "#1a1f0e", width: "100%",
             }}
           />
+          {search && (
+            <button onClick={() => applyFilter("search", "")} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+          )}
         </div>
 
-        {/* Status filter — FR-31 */}
         <select
           value={statusFilter}
           onChange={e => applyFilter("statusFilter", e.target.value)}
           style={{
-            fontFamily: "'Geist', sans-serif", fontSize: 13, color: "#1a1f0e",
+            fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#1a1f0e",
             padding: "7px 12px", border: "1px solid #dde0d4",
             background: "#f7f8f4", outline: "none", cursor: "pointer", minWidth: 160,
           }}
@@ -381,12 +377,11 @@ export default function AllTransfersPage() {
           ))}
         </select>
 
-        {/* Branch filter — FR-30 */}
         <select
           value={branchFilter}
           onChange={e => applyFilter("branchFilter", e.target.value)}
           style={{
-            fontFamily: "'Geist', sans-serif", fontSize: 13, color: "#1a1f0e",
+            fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#1a1f0e",
             padding: "7px 12px", border: "1px solid #dde0d4",
             background: "#f7f8f4", outline: "none", cursor: "pointer", minWidth: 160,
           }}
@@ -394,6 +389,21 @@ export default function AllTransfersPage() {
           <option value="">All Branches</option>
           {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
         </select>
+
+        {(search || statusFilter || branchFilter) && (
+          <button
+            onClick={() => { setSearch(""); setStatusFilter(""); setBranchFilter(""); setPage(0) }}
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca",
+              padding: "5px 10px", cursor: "pointer",
+              fontFamily: "'DM Mono', monospace", fontSize: 10,
+              textTransform: "uppercase", letterSpacing: "0.06em",
+            }}
+          >
+            × Clear filters
+          </button>
+        )}
 
         <button
           onClick={() => load(page, { search, statusFilter, branchFilter })}
@@ -425,10 +435,10 @@ export default function AllTransfersPage() {
         </div>
       )}
 
-      {/* ── Table ── */}
+      {/* Table */}
       <div style={{ background: "#fff", border: "1px solid #dde0d4", overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: "'Geist', sans-serif" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: "'Inter', sans-serif" }}>
             <thead>
               <tr style={{ background: "#f7f8f4", borderBottom: "1px solid #e8ebe3" }}>
                 {COLS.map(h => (
@@ -451,22 +461,20 @@ export default function AllTransfersPage() {
                         border: "2px solid #dde0d4", borderTopColor: "#3d7a2b",
                         animation: "at-spin 0.7s linear infinite",
                       }} />
-                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af", textTransform: "uppercase" }}>
-                        Loading…
-                      </span>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af", textTransform: "uppercase" }}>Loading…</span>
                     </div>
                     <style>{`@keyframes at-spin { to { transform: rotate(360deg) } }`}</style>
                   </td>
                 </tr>
-              ) : transfers.length === 0 ? (
+              ) : displayRows.length === 0 ? (
                 <tr>
-                  <td colSpan={COLS.length} style={{ padding: 48, textAlign: "center", fontFamily: "'Geist', sans-serif", fontSize: 13, color: "#9ca3af" }}>
+                  <td colSpan={COLS.length} style={{ padding: 48, textAlign: "center", fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9ca3af" }}>
                     {search || statusFilter || branchFilter
                       ? "No transfers match your filters."
                       : "No transfers found."}
                   </td>
                 </tr>
-              ) : transfers.map((t, idx) => (
+              ) : displayRows.map((t, idx) => (
                 <tr
                   key={t.id ?? idx}
                   style={{ borderBottom: "1px solid #f0f1ec", transition: "background 100ms", cursor: "pointer" }}
@@ -474,35 +482,18 @@ export default function AllTransfersPage() {
                   onMouseLeave={e => e.currentTarget.style.background = ""}
                   onClick={() => setSelected(t)}
                 >
-                  {/* id */}
-                  <td style={{ padding: "11px 14px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af" }}>
-                    #{t.id}
-                  </td>
-
-                  {/* itemName + itemCode */}
+                  <td style={{ padding: "11px 14px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af" }}>#{t.id}</td>
                   <td style={{ padding: "11px 14px" }}>
                     <div style={{ fontWeight: 500, color: "#1a1f0e" }}>{t.itemName ?? "—"}</div>
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#9ca3af", marginTop: 2 }}>{t.itemCode ?? ""}</div>
                   </td>
-
-                  {/* sourceBranchName → destinationBranchName */}
                   <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
                     <span style={{ color: "#1a1f0e", fontWeight: 500 }}>{t.sourceBranchName ?? "—"}</span>
                     <span style={{ color: "#9ca3af", margin: "0 6px" }}>→</span>
                     <span style={{ color: "#1a1f0e", fontWeight: 500 }}>{t.destinationBranchName ?? "—"}</span>
                   </td>
-
-                  {/* quantity */}
-                  <td style={{ padding: "11px 14px", fontFamily: "'DM Mono', monospace", fontWeight: 700, color: "#1a1f0e" }}>
-                    {t.quantity ?? "—"}
-                  </td>
-
-                  {/* totalValue (BigDecimal) */}
-                  <td style={{ padding: "11px 14px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>
-                    {formatCurrency(t.totalValue)}
-                  </td>
-
-                  {/* requiresHoApproval — primitive boolean, safe as-is in JSON */}
+                  <td style={{ padding: "11px 14px", fontFamily: "'DM Mono', monospace", fontWeight: 700, color: "#1a1f0e" }}>{t.quantity ?? "—"}</td>
+                  <td style={{ padding: "11px 14px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>{formatCurrency(t.totalValue)}</td>
                   <td style={{ padding: "11px 14px" }}>
                     <span style={{
                       fontFamily: "'DM Mono', monospace", fontSize: 9,
@@ -514,28 +505,18 @@ export default function AllTransfersPage() {
                       {t.requiresHoApproval ? "Yes" : "No"}
                     </span>
                   </td>
-
-                  {/* status */}
-                  <td style={{ padding: "11px 14px" }}>
-                    <StatusBadge status={t.status} />
-                  </td>
-
-                  {/* requestedAt (LocalDateTime) */}
+                  <td style={{ padding: "11px 14px" }}><StatusBadge status={t.status} /></td>
                   <td style={{ padding: "11px 14px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" }}>
                     {formatDate(t.requestedAt)}
                   </td>
-
-                  {/* Detail chevron */}
-                  <td style={{ padding: "11px 14px", color: "#9ca3af" }}>
-                    <IconChevron />
-                  </td>
+                  <td style={{ padding: "11px 14px", color: "#9ca3af" }}><IconChevron /></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
-        {/* ── Pagination ── */}
+        {/* Pagination */}
         {!loading && totalPages > 1 && (
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -563,10 +544,7 @@ export default function AllTransfersPage() {
         )}
       </div>
 
-      {/* ── Detail Drawer ── */}
-      {selected && (
-        <DetailDrawer transfer={selected} onClose={() => setSelected(null)} />
-      )}
+      {selected && <DetailDrawer transfer={selected} onClose={() => setSelected(null)} />}
     </div>
   )
 }

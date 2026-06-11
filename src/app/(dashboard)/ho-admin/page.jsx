@@ -67,6 +67,27 @@ const QUICK = [
   { label: "Reports",         desc: "Stock & transfer reports", href: "/ho-admin/reports",     Icon: IconReport    },
 ]
 
+// ── Helper: safely read totalElements from either Page structure ───────────────
+// Before @EnableSpringDataWebSupport: { content, totalElements, totalPages, ... }
+// After  @EnableSpringDataWebSupport: { content, page: { totalElements, ... } }
+function totalElements(pageData) {
+  if (!pageData) return 0
+  // New VIA_DTO structure
+  if (pageData.page?.totalElements != null) return pageData.page.totalElements
+  // Old flat structure (fallback)
+  if (pageData.totalElements != null) return pageData.totalElements
+  // If it's just an array
+  if (Array.isArray(pageData)) return pageData.length
+  return 0
+}
+
+function getContent(pageData) {
+  if (!pageData) return []
+  if (Array.isArray(pageData.content)) return pageData.content
+  if (Array.isArray(pageData)) return pageData
+  return []
+}
+
 function Spinner() {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "48px 0" }}>
@@ -85,10 +106,10 @@ export default function HOAdminDashboard() {
     totalItems:       0,
     completedToday:   0,
   })
-  const [pendingList, setPendingList]   = useState([])
+  const [pendingList,  setPendingList]  = useState([])
   const [lowStockList, setLowStockList] = useState([])
-  const [loading, setLoading]           = useState(true)
-  const [error, setError]               = useState(null)
+  const [loading,      setLoading]      = useState(true)
+  const [error,        setError]        = useState(null)
 
   useEffect(() => {
     async function loadDashboard() {
@@ -97,39 +118,39 @@ export default function HOAdminDashboard() {
 
         const [
           pendingRes,
-          branchesRes,  // ApiResponse<List<Branch>> — plain array, NO pagination
+          branchesRes,
           lowStockRes,
           inTransitRes,
           itemsRes,
           completedRes,
         ] = await Promise.all([
           api.get("/approvals/pending/head-office?size=4&page=0"),
-          api.get("/branches"),              // no size/sort params — not a paged endpoint
+          api.get("/branches"),
           api.get("/stock/low-stock-alerts"),
           api.get("/transfers?status=IN_TRANSIT&size=1"),
           api.get("/items?size=1"),
           api.get("/transfers?status=COMPLETED&size=1"),
         ])
 
-        // Pending approvals — ApiResponse<Page<TransferResponse>>
+        // Pending approvals
         const pendingPage = pendingRes?.data
-        setPendingList(pendingPage?.content ?? [])
+        setPendingList(getContent(pendingPage))
 
-        // Low stock — ApiResponse<List<LowStockAlertResponse>> (not paged)
+        // Low stock — plain List (not paged)
         const lowStockData = Array.isArray(lowStockRes?.data) ? lowStockRes.data : []
         setLowStockList(lowStockData.slice(0, 4))
 
-        // Branches — ApiResponse<List<BranchSummaryResponse>>
-        // plain List, no totalElements → use .length
+        // Branches — plain List (not paged)
         const branchData = Array.isArray(branchesRes?.data) ? branchesRes.data : []
 
         setStats({
-          pendingApprovals: pendingPage?.totalElements ?? 0,
-          totalBranches:    branchData.length,              // ← fixed: was totalElements (doesn't exist on List)
+          // FIX: use totalElements() helper which handles both old and new Page structure
+          pendingApprovals: totalElements(pendingPage),
+          totalBranches:    branchData.length,
           lowStockItems:    lowStockData.length,
-          inTransit:        inTransitRes?.data?.totalElements ?? 0,
-          totalItems:       itemsRes?.data?.totalElements ?? 0,
-          completedToday:   completedRes?.data?.totalElements ?? 0,
+          inTransit:        totalElements(inTransitRes?.data),
+          totalItems:       totalElements(itemsRes?.data),
+          completedToday:   totalElements(completedRes?.data),
         })
       } catch (err) {
         setError(err.message)

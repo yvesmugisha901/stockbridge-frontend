@@ -33,6 +33,17 @@ function formatDate(dt) {
   if (!dt) return "—"
   return new Date(dt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
 }
+
+// Handles both Spring page shapes:
+//   old: { content, totalElements, totalPages }
+//   new: { content, page: { totalElements, totalPages } }
+function extractPage(payload) {
+  const content      = payload?.content ?? []
+  const totalElements = payload?.page?.totalElements ?? payload?.totalElements ?? 0
+  const totalPages    = payload?.page?.totalPages    ?? payload?.totalPages    ?? 0
+  return { content, totalElements, totalPages }
+}
+
 function getPageWindow(current, total) {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i)
   const pages = []
@@ -53,8 +64,10 @@ function SummaryCard({ label, value, accent, sub }) {
   return (
     <div style={{ background: "#fff", border: "1px solid #dde0d4", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 4 }}>
       <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.12em", color: "#9ca3af" }}>{label}</span>
-      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 22, fontWeight: 700, color: accent ?? "#1a1f0e", lineHeight: 1 }}>{value}</span>
-      {sub && <span style={{ fontFamily: "'Geist', sans-serif", fontSize: 11, color: "#9ca3af" }}>{sub}</span>}
+      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 22, fontWeight: 700, color: accent ?? "#1a1f0e", lineHeight: 1 }}>
+        {value ?? "—"}
+      </span>
+      {sub && <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#9ca3af" }}>{sub}</span>}
     </div>
   )
 }
@@ -76,11 +89,8 @@ function PagBtn({ label, onClick, disabled, active }) {
 
 // ── Main Page ─────────────────────────────────────────────────
 export default function AllStockPage() {
-  // ── Raw data from API ──────────────────────────────────────
-  // Normal mode: paginated from GET /stock
-  // Low-stock mode: flat list from GET /stock/low-stock-alerts
-  const [stock,      setStock]      = useState([])   // current page rows (normal mode)
-  const [lowAlerts,  setLowAlerts]  = useState([])   // all low-stock rows (low-stock mode)
+  const [stock,      setStock]      = useState([])
+  const [lowAlerts,  setLowAlerts]  = useState([])
   const [branches,   setBranches]   = useState([])
   const [totalPages, setTotalPages] = useState(0)
   const [totalItems, setTotalItems] = useState(0)
@@ -88,13 +98,10 @@ export default function AllStockPage() {
   const [loading,    setLoading]    = useState(true)
   const [error,      setError]      = useState(null)
 
-  // ── Filter state ───────────────────────────────────────────
   const [search,       setSearch]       = useState("")
   const [branchFilter, setBranchFilter] = useState("")
-  // lowOnly switches to the /low-stock-alerts endpoint entirely
   const [lowOnly,      setLowOnly]      = useState(false)
 
-  // ── Load branches (flat list, not paginated) ───────────────
   useEffect(() => {
     api.get("/branches")
       .then(res => {
@@ -104,7 +111,6 @@ export default function AllStockPage() {
       .catch(() => {})
   }, [])
 
-  // ── Load normal stock (paginated, branchId filter sent to backend) ─────────
   const loadStock = useCallback(async (pageNum, branchId) => {
     setLoading(true)
     setError(null)
@@ -117,10 +123,11 @@ export default function AllStockPage() {
       if (branchId) params.set("branchId", String(branchId))
 
       const res     = await api.get(`/stock?${params}`)
-      const payload = res?.data
-      setStock(payload?.content        ?? [])
-      setTotalPages(payload?.totalPages    ?? 0)
-      setTotalItems(payload?.totalElements ?? 0)
+      // Handle both old { totalElements } and new { page: { totalElements } } Spring shapes
+      const { content, totalElements, totalPages } = extractPage(res?.data)
+      setStock(content)
+      setTotalItems(totalElements)
+      setTotalPages(totalPages)
     } catch (err) {
       const msg = err?.response?.data?.message ?? err.message ?? "Unknown error"
       setError(msg)
@@ -130,8 +137,6 @@ export default function AllStockPage() {
     }
   }, [])
 
-  // ── Load low-stock alerts (dedicated endpoint, flat list) ──────────────────
-  // GET /api/v1/stock/low-stock-alerts?branchId=x
   const loadLowStock = useCallback(async (branchId) => {
     setLoading(true)
     setError(null)
@@ -140,9 +145,6 @@ export default function AllStockPage() {
       if (branchId) params.set("branchId", String(branchId))
       const qs  = params.toString()
       const res = await api.get(`/stock/low-stock-alerts${qs ? `?${qs}` : ""}`)
-      // Returns ApiResponse<List<LowStockAlertResponse>>
-      // Map LowStockAlertResponse fields to match StockLevelResponse shape
-      // so the same table rows work for both modes
       const raw = res?.data ?? []
       setLowAlerts(raw)
     } catch (err) {
@@ -154,19 +156,12 @@ export default function AllStockPage() {
     }
   }, [])
 
-  // ── Re-fetch whenever mode / branch / page changes ─────────────────────────
   useEffect(() => {
-    if (lowOnly) {
-      loadLowStock(branchFilter)
-    } else {
-      loadStock(page, branchFilter)
-    }
+    if (lowOnly) loadLowStock(branchFilter)
+    else         loadStock(page, branchFilter)
   }, [lowOnly, branchFilter, page, loadStock, loadLowStock])
 
-  // ── Derived display rows ───────────────────────────────────
-  // In normal mode: apply client-side search over the current page
-  // In low-stock mode: apply client-side search over the full alerts list
-  const baseRows = lowOnly ? lowAlerts : stock
+  const baseRows    = lowOnly ? lowAlerts : stock
   const displayRows = search.trim()
     ? baseRows.filter(s => {
         const q = search.trim().toLowerCase()
@@ -178,15 +173,14 @@ export default function AllStockPage() {
       })
     : baseRows
 
-  // ── Handlers ──────────────────────────────────────────────
-  function handleSearch(v)  { setSearch(v) }   // client-side only, no page reset needed
+  function handleSearch(v)  { setSearch(v) }
   function handleBranch(v)  { setBranchFilter(v); setPage(0) }
-  function handleLowOnly(v) { setLowOnly(v);      setPage(0); setSearch("") }
+  function handleLowOnly(v) { setLowOnly(v); setPage(0); setSearch("") }
   function handleRefresh()  {
     if (lowOnly) loadLowStock(branchFilter)
     else         loadStock(page, branchFilter)
   }
-  function clearFilters()   { setSearch(""); setBranchFilter(""); setLowOnly(false); setPage(0) }
+  function clearFilters() { setSearch(""); setBranchFilter(""); setLowOnly(false); setPage(0) }
 
   const goTo = (p) => {
     if (p < 0 || p >= totalPages) return
@@ -194,10 +188,8 @@ export default function AllStockPage() {
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
-  // Summary counts always from current display rows
-  const lowCount     = lowOnly ? lowAlerts.length : stock.filter(isLow).length
-  const okCount      = lowOnly ? 0 : stock.filter(s => !isLow(s)).length
-  const displayCount = displayRows.length
+  const lowCount = lowOnly ? lowAlerts.length : stock.filter(isLow).length
+  const okCount  = lowOnly ? 0 : stock.filter(s => !isLow(s)).length
 
   const COLS = [
     "Branch", "Item Code", "Item Name",
@@ -207,19 +199,16 @@ export default function AllStockPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <PageHeader
-        title="Stock Overview"
-        subtitle="Read-only view of current stock levels across all branches."
-      />
+      <PageHeader title="Stock Overview" />
 
-      {/* ── Low Stock Banner (only in normal mode when low items exist) ── */}
+      {/* Low Stock Banner */}
       {!loading && !lowOnly && lowCount > 0 && (
         <div style={{
           display: "flex", alignItems: "center", gap: 12,
           background: "#fef2f2", border: "1px solid #fecaca", padding: "12px 16px",
         }}>
           <span style={{ color: "#dc2626", flexShrink: 0 }}><IconAlert /></span>
-          <p style={{ fontFamily: "'Geist', sans-serif", fontSize: 13, color: "#dc2626", fontWeight: 500, margin: 0 }}>
+          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#dc2626", fontWeight: 500, margin: 0 }}>
             <strong>{lowCount}</strong> item{lowCount !== 1 ? "s are" : " is"} below the minimum stock threshold.
           </p>
           <button
@@ -236,32 +225,58 @@ export default function AllStockPage() {
         </div>
       )}
 
-      {/* ── Summary Cards ── */}
+      {/* Summary Cards */}
       {!loading && !error && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
           {lowOnly ? (
             <>
-              <SummaryCard label="Low Stock Items" value={lowAlerts.length} accent="#dc2626" sub="below minimum threshold" />
-              <SummaryCard label="Showing"         value={displayCount}     sub={search ? "matching search" : "all alerts"} />
+              <SummaryCard
+                label="Low Stock Items"
+                value={lowAlerts.length}
+                accent="#dc2626"
+                sub="below minimum threshold"
+              />
+              <SummaryCard
+                label="Filtered"
+                value={displayRows.length}
+                sub={search ? "matching search" : "all alerts"}
+              />
             </>
           ) : (
             <>
-              <SummaryCard label="Total Records" value={totalItems}   sub="across all branches" />
-              <SummaryCard label="Showing"       value={displayCount} sub={search ? "matching search" : `page ${page + 1} of ${totalPages || 1}`} />
-              <SummaryCard label="Low / Out"     value={lowCount}     accent={lowCount > 0 ? "#dc2626" : "#3d7a2b"} sub="below minimum threshold" />
-              <SummaryCard label="Healthy"       value={okCount}      accent="#3d7a2b" sub="at or above minimum" />
+              <SummaryCard
+                label="Total Records"
+                value={totalItems.toLocaleString()}
+                sub="across all branches"
+              />
+              <SummaryCard
+                label="Page"
+                value={`${page + 1} / ${totalPages || 1}`}
+                sub={`${PAGE_SIZE} records per page`}
+              />
+              <SummaryCard
+                label="Low / Out"
+                value={lowCount}
+                accent={lowCount > 0 ? "#dc2626" : "#3d7a2b"}
+                sub="below minimum threshold"
+              />
+              <SummaryCard
+                label="Healthy"
+                value={okCount}
+                accent="#3d7a2b"
+                sub="at or above minimum"
+              />
             </>
           )}
         </div>
       )}
 
-      {/* ── Filters ── */}
+      {/* Filters */}
       <div style={{
         background: "#fff", border: "1px solid #dde0d4",
         padding: "14px 20px", display: "flex",
         flexWrap: "wrap", alignItems: "center", gap: 12,
       }}>
-        {/* Search — client-side */}
         <div style={{
           display: "flex", alignItems: "center", gap: 8,
           border: "1px solid #dde0d4", background: "#f7f8f4",
@@ -275,7 +290,7 @@ export default function AllStockPage() {
             onChange={e => handleSearch(e.target.value)}
             style={{
               background: "transparent", border: "none", outline: "none",
-              fontSize: 13, fontFamily: "'Geist', sans-serif",
+              fontSize: 13, fontFamily: "'Inter', sans-serif",
               color: "#1a1f0e", width: "100%",
             }}
           />
@@ -283,18 +298,15 @@ export default function AllStockPage() {
             <button
               onClick={() => handleSearch("")}
               style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 16, lineHeight: 1, padding: 0 }}
-            >
-              ×
-            </button>
+            >×</button>
           )}
         </div>
 
-        {/* Branch filter — sent to backend */}
         <select
           value={branchFilter}
           onChange={e => handleBranch(e.target.value)}
           style={{
-            fontFamily: "'Geist', sans-serif", fontSize: 13, color: "#1a1f0e",
+            fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#1a1f0e",
             padding: "7px 12px", border: "1px solid #dde0d4",
             background: "#f7f8f4", outline: "none", cursor: "pointer", minWidth: 160,
           }}
@@ -305,7 +317,6 @@ export default function AllStockPage() {
           ))}
         </select>
 
-        {/* Low stock toggle — switches endpoint */}
         <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
           <input
             type="checkbox"
@@ -313,7 +324,7 @@ export default function AllStockPage() {
             onChange={e => handleLowOnly(e.target.checked)}
             style={{ accentColor: "#dc2626", width: 14, height: 14 }}
           />
-          <span style={{ fontFamily: "'Geist', sans-serif", fontSize: 13, color: lowOnly ? "#dc2626" : "#1a1f0e", fontWeight: lowOnly ? 600 : 400 }}>
+          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: lowOnly ? "#dc2626" : "#1a1f0e", fontWeight: lowOnly ? 600 : 400 }}>
             Low stock only
           </span>
           {lowCount > 0 && (
@@ -327,7 +338,6 @@ export default function AllStockPage() {
           )}
         </label>
 
-        {/* Clear filters */}
         {(search || branchFilter || lowOnly) && (
           <button
             onClick={clearFilters}
@@ -343,7 +353,6 @@ export default function AllStockPage() {
           </button>
         )}
 
-        {/* Refresh */}
         <button
           onClick={handleRefresh}
           style={{
@@ -372,9 +381,8 @@ export default function AllStockPage() {
         </div>
       )}
 
-      {/* ── Table ── */}
+      {/* Table */}
       <div style={{ background: "#fff", border: "1px solid #dde0d4", overflow: "hidden" }}>
-        {/* Mode indicator when in low-stock view */}
         {lowOnly && !loading && (
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -393,7 +401,7 @@ export default function AllStockPage() {
         )}
 
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: "'Geist', sans-serif" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: "'Inter', sans-serif" }}>
             <thead>
               <tr style={{ background: "#f7f8f4", borderBottom: "1px solid #e8ebe3" }}>
                 {COLS.map(h => (
@@ -427,7 +435,7 @@ export default function AllStockPage() {
                 </tr>
               ) : displayRows.length === 0 ? (
                 <tr>
-                  <td colSpan={COLS.length} style={{ padding: 48, textAlign: "center", fontFamily: "'Geist', sans-serif", fontSize: 13, color: "#9ca3af" }}>
+                  <td colSpan={COLS.length} style={{ padding: 48, textAlign: "center", fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9ca3af" }}>
                     {search
                       ? `No results for "${search}".`
                       : lowOnly
@@ -457,9 +465,7 @@ export default function AllStockPage() {
                     <td style={{ padding: "11px 14px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#3d7a2b", fontWeight: 600 }}>
                       {s.itemCode ?? "—"}
                     </td>
-                    <td style={{ padding: "11px 14px", color: "#1a1f0e" }}>
-                      {s.itemName ?? "—"}
-                    </td>
+                    <td style={{ padding: "11px 14px", color: "#1a1f0e" }}>{s.itemName ?? "—"}</td>
                     <td style={{ padding: "11px 14px", fontFamily: "'DM Mono', monospace", fontWeight: 700, color: low ? "#dc2626" : "#1a1f0e" }}>
                       {s.quantityOnHand ?? 0}
                     </td>
@@ -506,7 +512,7 @@ export default function AllStockPage() {
           </table>
         </div>
 
-        {/* ── Pagination — only in normal mode ── */}
+        {/* Pagination — normal mode only */}
         {!loading && !lowOnly && totalPages > 1 && (
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -517,7 +523,7 @@ export default function AllStockPage() {
               Page <strong style={{ color: "#1a1f0e" }}>{page + 1}</strong> of{" "}
               <strong style={{ color: "#1a1f0e" }}>{totalPages}</strong>
               {"  ·  "}
-              <span style={{ color: "#9ca3af" }}>{totalItems.toLocaleString()} records</span>
+              <span style={{ color: "#9ca3af" }}>{totalItems.toLocaleString()} total records</span>
             </span>
             <div style={{ display: "flex", gap: 4 }}>
               <PagBtn label="«" onClick={() => goTo(0)}              disabled={page === 0} />

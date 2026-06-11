@@ -170,8 +170,9 @@ export default function ManagerDashboard() {
   }
 
   // ── Navigate to approvals page and auto-focus a specific transfer ──────────
+  // Points to the dedicated review detail page for this transfer
   const handleReview = (transferId) => {
-    router.push(`/dashboard/manager/approvals?id=${transferId}`)
+    router.push(`/manager/approvals/${transferId}`)
   }
 
   return (
@@ -208,7 +209,7 @@ export default function ManagerDashboard() {
       {/* ── Pending Approvals ── */}
       <Section icon={<IconClock />} iconColor="#ca8a04"
         title="Transfer Requests Awaiting Your Approval"
-        link={{ href: "/dashboard/manager/approvals", label: "View all →" }}>
+        link={{ href: "/manager/approvals", label: "View all →" }}>
         <Card>
           {loading ? <Spinner /> : (
             <Table cols={["Request", "Item", "Qty", "From → To", "Requested By", "Date", ""]}>
@@ -299,7 +300,7 @@ export default function ManagerDashboard() {
       {/* ── Recent Transfers ── */}
       <Section icon={<IconTransfer />} iconColor="#6b7260"
         title={`Recent Transfers — ${branchName}`}
-        link={{ href: "/dashboard/manager/reports", label: "Full report →" }}>
+        link={{ href: "/manager/reports", label: "Full report →" }}>
         <Card>
           {loading ? <Spinner /> : (
             <Table cols={["Request", "Item", "Qty", "From → To", "Status", "Date"]}>

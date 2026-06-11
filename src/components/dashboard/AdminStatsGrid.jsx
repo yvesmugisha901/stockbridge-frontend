@@ -38,17 +38,12 @@ const IconStatus = () => (
     <path d="M8 12l3 3 5-5" />
   </svg>
 )
-const IconShield = () => (
+const IconNewUser = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-    <path d="M9 12l2 2 4-4"/>
-  </svg>
-)
-const IconAlert = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-    <line x1="12" y1="9" x2="12" y2="13"/>
-    <line x1="12" y1="17" x2="12.01" y2="17"/>
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+    <circle cx="9" cy="7" r="4"/>
+    <line x1="19" y1="8" x2="19" y2="14"/>
+    <line x1="22" y1="11" x2="16" y2="11"/>
   </svg>
 )
 
@@ -65,7 +60,16 @@ export default function AdminStatsGrid({ stats }) {
         value={stats?.totalUsers}
         icon={<IconUser />}
         color="green"
-        trend={stats?.newUsersThisMonth ? `${stats.newUsersThisMonth} new this month` : "No new users"}
+        trend={stats?.newUsersThisMonth > 0 ? `${stats.newUsersThisMonth} new this month` : "No new users this month"}
+        trendUp={stats?.newUsersThisMonth > 0}
+      />
+      <StatsCard
+        label="New This Month"
+        subLabel="User accounts created this month"
+        value={stats?.newUsersThisMonth ?? 0}
+        icon={<IconNewUser />}
+        color="teal"
+        trend={stats?.newUsersThisMonth > 0 ? "Growing" : "No new signups"}
         trendUp={stats?.newUsersThisMonth > 0}
       />
       <StatsCard
@@ -83,17 +87,7 @@ export default function AdminStatsGrid({ stats }) {
         value={stats?.activeItems}
         icon={<IconBox />}
         color="yellow"
-        trend={stats?.lowStockCount ? `${stats.lowStockCount} items running low` : "Stock is healthy"}
-        trendUp={stats?.lowStockCount === 0}
-      />
-      <StatsCard
-        label="Access Levels"
-        subLabel="Who can do what in the system"
-        value={stats?.activeRoles}
-        icon={<IconShield />}
-        color="teal"
-        trend="All roles set up"
-        trendUp={true}
+        trend="Active catalogue items"
       />
       <StatsCard
         label="Transfers Done"
@@ -111,15 +105,6 @@ export default function AdminStatsGrid({ stats }) {
         color={stats?.pendingTransfers > 0 ? "yellow" : "green"}
         trend={stats?.pendingTransfers > 0 ? "Needs someone to approve" : "Nothing pending"}
         trendUp={stats?.pendingTransfers === 0}
-      />
-      <StatsCard
-        label="Low Stock Alerts"
-        subLabel="Products that need to be restocked"
-        value={stats?.lowStockCount}
-        icon={<IconAlert />}
-        color="red"
-        trend={stats?.lowStockCount > 0 ? "Order more soon" : "Stock is healthy"}
-        trendUp={stats?.lowStockCount === 0}
       />
       <StatsCard
         label="System Health"
