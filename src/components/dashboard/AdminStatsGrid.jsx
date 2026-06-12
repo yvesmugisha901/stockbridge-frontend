@@ -49,7 +49,7 @@ const IconNewUser = () => (
 
 export default function AdminStatsGrid({ stats }) {
   return (
-    <div style={{
+    <div className="admin-stats-grid" style={{
       display: "grid",
       gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
       gap: 10,

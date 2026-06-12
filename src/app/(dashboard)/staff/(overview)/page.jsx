@@ -196,7 +196,7 @@ export default function StaffDashboard() {
       {lowStockItems.length > 0 && (
         <Section icon={<IconAlert />} iconColor="#dc2626"
           title={`Low Stock at ${branchName}`}
-          link={lowStockItems.length > 5 ? { href: "/dashboard/staff/stock", label: `+${lowStockItems.length - 5} more →` } : undefined}>
+          link={lowStockItems.length > 5 ? { href: "/staff/stock", label: `+${lowStockItems.length - 5} more →` } : undefined}>
           <div style={{ background: "#fff", border: "1px solid #dde0d4" }}>
             {lowStockItems.slice(0, 5).map((item, idx) => (
               <div key={item.id} style={{
@@ -222,7 +222,7 @@ export default function StaffDashboard() {
       {/* ── My Recent Requests ── */}
       <Section icon={<IconTransfer />} iconColor="#6b7260"
         title="My Transfer Requests"
-        link={{ href: "/dashboard/staff/transfers", label: "View all →" }}>
+        link={{ href: "/staff/transfers", label: "View all →" }}>
         <div style={{ background: "#fff", border: "1px solid #dde0d4", overflow: "hidden" }}>
           {transfers.length === 0 ? (
             <div style={{ padding: "40px 0", textAlign: "center", fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#9ca3af" }}>

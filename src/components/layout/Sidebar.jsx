@@ -46,6 +46,9 @@ function ConfigIcon() {
 function SettingsIcon() {
   return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
 }
+function CloseIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+}
 
 const NAV = {
   [ROLES.STAFF]: [
@@ -95,7 +98,7 @@ const ROLE_LABEL = {
   [ROLES.ACCOUNTANT]: "Accountant",
 }
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen = false, onClose }) {
   const { user }  = useAuthContext()
   const pathname  = usePathname()
   const links     = NAV[user?.role] || []
@@ -136,6 +139,7 @@ export default function Sidebar() {
           key={href}
           href={href}
           style={style}
+          onClick={onClose}
           onMouseEnter={(e) => {
             if (!active) {
               e.currentTarget.style.color = "#1a1f0e"
@@ -180,7 +184,7 @@ export default function Sidebar() {
   const settingsActive = pathname === "/settings"
 
   return (
-    <aside style={{
+    <aside className={`sidebar ${isOpen ? "sidebar-open" : ""}`} style={{
       width: 228, minWidth: 228, height: "100vh",
       background: "#ffffff", borderRight: "1px solid #e8ebe3",
       display: "flex", flexDirection: "column",
@@ -188,7 +192,7 @@ export default function Sidebar() {
 
       {/* Logo bar */}
       <div style={{
-        height: 60, display: "flex", alignItems: "center",
+        height: 60, display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "0 20px", borderBottom: "1px solid #e8ebe3",
         flexShrink: 0,
       }}>
@@ -209,6 +213,19 @@ export default function Sidebar() {
             StockBridge
           </span>
         </div>
+
+        {/* Close button — only visible on mobile drawer */}
+        <button
+          onClick={onClose}
+          className="sidebar-close"
+          aria-label="Close menu"
+          style={{
+            background: "none", border: "none", cursor: "pointer",
+            color: "#6b7260", padding: 4, display: "flex",
+          }}
+        >
+          <CloseIcon />
+        </button>
       </div>
 
       {/* Nav */}
@@ -230,6 +247,7 @@ export default function Sidebar() {
         <div style={{ marginTop: 8, borderTop: "1px solid #e8ebe3", paddingTop: 8 }}>
           <Link
             href="/settings"
+            onClick={onClose}
             style={{
               display: "flex", alignItems: "center", gap: 10,
               padding: "8px 10px", textDecoration: "none", borderRadius: 6,

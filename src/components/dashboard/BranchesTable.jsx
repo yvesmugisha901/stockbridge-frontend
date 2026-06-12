@@ -35,97 +35,99 @@ export default function BranchesTable({ branches = [], loading, onEdit, onToggle
 
   return (
     <div style={{ background: "#fff", border: "1px solid #dde0d4" }}>
-      <SBTable columns={columns} empty="No branches configured.">
-        {branches.map((b) => (
-          <SBRow key={b.id}>
+      <div className="table-scroll">
+        <SBTable columns={columns} empty="No branches configured.">
+          {branches.map((b) => (
+            <SBRow key={b.id}>
 
-            {/* Code chip */}
-            <SBCell>
-              <span style={{
-                fontFamily:    "'DM Mono', monospace",
-                fontSize:      11,
-                background:    b.active ? "#f0f7ed" : "#f7f8f4",
-                color:         b.active ? "#3d7a2b" : "#6b7260",
-                padding:       "3px 8px",
-                border:        `1px solid ${b.active ? "#bbf7d0" : "#dde0d4"}`,
-                letterSpacing: "0.08em",
-              }}>
-                {b.code}
-              </span>
-            </SBCell>
+              {/* Code chip */}
+              <SBCell>
+                <span style={{
+                  fontFamily:    "'DM Mono', monospace",
+                  fontSize:      11,
+                  background:    b.active ? "#f0f7ed" : "#f7f8f4",
+                  color:         b.active ? "#3d7a2b" : "#6b7260",
+                  padding:       "3px 8px",
+                  border:        `1px solid ${b.active ? "#bbf7d0" : "#dde0d4"}`,
+                  letterSpacing: "0.08em",
+                }}>
+                  {b.code}
+                </span>
+              </SBCell>
 
-            {/* Name */}
-            <SBCell>
-              <span style={{
-                fontFamily: "'DM Mono', monospace",
-                fontSize:   12,
-                color:      "#1a1f0e",
-                fontWeight: 500,
-              }}>
-                {b.name}
-              </span>
-            </SBCell>
-
-            {/* Location */}
-            <SBCell muted>{b.location ?? "—"}</SBCell>
-
-            {/* Contact — field is contactInfo on BranchSummaryResponse */}
-            <SBCell muted>{b.contactInfo ?? "—"}</SBCell>
-
-            {/* Total items — field is totalItems on BranchSummaryResponse */}
-            <SBCell muted>{b.totalItems ?? 0}</SBCell>
-
-            {/* Low stock count */}
-            <SBCell>
-              {b.lowStockCount > 0 ? (
+              {/* Name */}
+              <SBCell>
                 <span style={{
                   fontFamily: "'DM Mono', monospace",
-                  fontSize:   11,
-                  background: "#fef9ec",
-                  color:      "#92400e",
-                  padding:    "2px 8px",
-                  border:     "1px solid #fde68a",
+                  fontSize:   12,
+                  color:      "#1a1f0e",
+                  fontWeight: 500,
                 }}>
-                  {b.lowStockCount} low
+                  {b.name}
                 </span>
-              ) : (
-                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#b0b5a0" }}>—</span>
-              )}
-            </SBCell>
+              </SBCell>
 
-            {/* Status badge */}
-            <SBCell>
-              <Badge
-                label={b.active ? "Active" : "Inactive"}
-                value={b.active ? "ACTIVE" : "INACTIVE"}
-                variant="status"
-              />
-            </SBCell>
+              {/* Location */}
+              <SBCell muted>{b.location ?? "—"}</SBCell>
 
-            {/* Actions */}
-            <SBCell>
-              <div style={{ display: "flex", gap: 6 }}>
-                <button
-                  onClick={() => onEdit?.(b)}
-                  style={actionBtn("#eff6ff", "#2563eb", "#bfdbfe")}
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => onToggleActive?.(b)}
-                  style={b.active
-                    ? actionBtn("#fef2f2", "#dc2626", "#fecaca")
-                    : actionBtn("#f0f7ed", "#3d7a2b", "#bbf7d0")
-                  }
-                >
-                  {b.active ? "Deactivate" : "Activate"}
-                </button>
-              </div>
-            </SBCell>
+              {/* Contact — field is contactInfo on BranchSummaryResponse */}
+              <SBCell muted>{b.contactInfo ?? "—"}</SBCell>
 
-          </SBRow>
-        ))}
-      </SBTable>
+              {/* Total items — field is totalItems on BranchSummaryResponse */}
+              <SBCell muted>{b.totalItems ?? 0}</SBCell>
+
+              {/* Low stock count */}
+              <SBCell>
+                {b.lowStockCount > 0 ? (
+                  <span style={{
+                    fontFamily: "'DM Mono', monospace",
+                    fontSize:   11,
+                    background: "#fef9ec",
+                    color:      "#92400e",
+                    padding:    "2px 8px",
+                    border:     "1px solid #fde68a",
+                  }}>
+                    {b.lowStockCount} low
+                  </span>
+                ) : (
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#b0b5a0" }}>—</span>
+                )}
+              </SBCell>
+
+              {/* Status badge */}
+              <SBCell>
+                <Badge
+                  label={b.active ? "Active" : "Inactive"}
+                  value={b.active ? "ACTIVE" : "INACTIVE"}
+                  variant="status"
+                />
+              </SBCell>
+
+              {/* Actions */}
+              <SBCell>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    onClick={() => onEdit?.(b)}
+                    style={actionBtn("#eff6ff", "#2563eb", "#bfdbfe")}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => onToggleActive?.(b)}
+                    style={b.active
+                      ? actionBtn("#fef2f2", "#dc2626", "#fecaca")
+                      : actionBtn("#f0f7ed", "#3d7a2b", "#bbf7d0")
+                    }
+                  >
+                    {b.active ? "Deactivate" : "Activate"}
+                  </button>
+                </div>
+              </SBCell>
+
+            </SBRow>
+          ))}
+        </SBTable>
+      </div>
     </div>
   )
 }
