@@ -182,7 +182,7 @@ export default function Home() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap');
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -199,6 +199,7 @@ export default function Home() {
           --accent2: #1d6fa4;
           --serif: 'DM Serif Display', Georgia, serif;
           --mono: 'DM Mono', 'Courier New', monospace;
+          --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
 
         html { scroll-behavior: smooth; }
@@ -206,10 +207,12 @@ export default function Home() {
         body {
           background: var(--bg);
           color: var(--text);
-          font-family: var(--mono);
-          font-size: 14px;
-          line-height: 1.6;
+          font-family: var(--sans);
+          font-size: 15px;
+          line-height: 1.65;
           overflow-x: hidden;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
         }
 
         /* NAV */
@@ -304,6 +307,7 @@ export default function Home() {
           pointer-events: none;
         }
         .hero-eyebrow {
+          font-family: var(--mono);
           font-size: 11px;
           letter-spacing: 0.2em;
           text-transform: uppercase;
@@ -326,8 +330,8 @@ export default function Home() {
 
         .hero-title {
           font-family: var(--serif);
-          font-size: clamp(52px, 8vw, 110px);
-          line-height: 0.95;
+          font-size: clamp(48px, 8vw, 108px);
+          line-height: 0.98;
           letter-spacing: -2px;
           color: var(--text);
           max-width: 900px;
@@ -345,7 +349,7 @@ export default function Home() {
           margin-top: 32px;
           max-width: 480px;
           color: var(--muted);
-          font-size: 14px;
+          font-size: 15px;
           line-height: 1.8;
           opacity: 0;
           transform: translateY(16px);
@@ -386,6 +390,7 @@ export default function Home() {
           box-shadow: 0 8px 30px rgba(61,122,43,0.22);
         }
         .btn-secondary {
+          font-family: var(--mono);
           font-size: 13px;
           color: var(--muted);
           text-decoration: none;
@@ -416,6 +421,7 @@ export default function Home() {
           letter-spacing: -1px;
         }
         .stat-label {
+          font-family: var(--mono);
           font-size: 11px;
           color: var(--muted);
           letter-spacing: 0.12em;
@@ -432,6 +438,7 @@ export default function Home() {
         /* FEATURES */
         .section { padding: 100px 48px; }
         .section-label {
+          font-family: var(--mono);
           font-size: 11px;
           letter-spacing: 0.2em;
           text-transform: uppercase;
@@ -444,9 +451,9 @@ export default function Home() {
         .section-label svg { color: var(--accent); }
         .section-title {
           font-family: var(--serif);
-          font-size: clamp(36px, 5vw, 60px);
+          font-size: clamp(34px, 5vw, 58px);
           letter-spacing: -1px;
-          line-height: 1.05;
+          line-height: 1.1;
           max-width: 600px;
           margin-bottom: 64px;
           color: var(--text);
@@ -454,7 +461,7 @@ export default function Home() {
 
         .features-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
           gap: 1px;
           background: var(--border);
           border: 1px solid var(--border);
@@ -483,19 +490,19 @@ export default function Home() {
           color: var(--accent);
         }
         .feature-num {
+          font-family: var(--mono);
           font-size: 11px;
           color: var(--border-hover);
           letter-spacing: 0.12em;
-          font-family: var(--mono);
         }
         .feature-label {
           font-family: var(--serif);
-          font-size: 22px;
+          font-size: 21px;
           color: var(--text);
           letter-spacing: -0.3px;
         }
         .feature-detail {
-          font-size: 13px;
+          font-size: 13.5px;
           color: var(--muted);
           line-height: 1.7;
         }
@@ -549,6 +556,7 @@ export default function Home() {
           color: #fff;
         }
         .step-status {
+          font-family: var(--mono);
           font-size: 10px;
           letter-spacing: 0.15em;
           text-transform: uppercase;
@@ -556,7 +564,7 @@ export default function Home() {
           font-weight: 500;
         }
         .step-desc {
-          font-size: 12px;
+          font-size: 12.5px;
           color: var(--muted);
           line-height: 1.5;
         }
@@ -612,7 +620,7 @@ export default function Home() {
           color: var(--text);
         }
         .role-desc {
-          font-size: 12px;
+          font-size: 13px;
           color: var(--muted);
           line-height: 1.7;
         }
@@ -648,10 +656,10 @@ export default function Home() {
         }
         .cta-title {
           font-family: var(--serif);
-          font-size: clamp(28px, 4vw, 48px);
+          font-size: clamp(28px, 4vw, 46px);
           letter-spacing: -1px;
           max-width: 500px;
-          line-height: 1.1;
+          line-height: 1.15;
           color: var(--text);
         }
         .cta-title em { font-style: italic; color: var(--accent); }
@@ -689,10 +697,12 @@ export default function Home() {
           clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
         }
         .footer-copy {
+          font-family: var(--mono);
           font-size: 12px;
           color: var(--muted);
         }
         .footer-tag {
+          font-family: var(--mono);
           font-size: 11px;
           color: var(--muted);
           letter-spacing: 0.1em;
@@ -709,10 +719,17 @@ export default function Home() {
           .section { padding: 60px 24px; }
           .workflow-section { padding: 60px 24px; }
           .roles-section { padding: 60px 24px; }
-          .cta-banner { margin: 0 24px 60px; padding: 48px 32px; }
-          .footer { padding: 24px; }
+          .cta-banner { margin: 0 24px 60px; padding: 48px 32px; flex-direction: column; align-items: flex-start; gap: 28px; }
+          .footer { padding: 24px; flex-direction: column; align-items: flex-start; gap: 12px; }
           .divider { margin: 0 24px; }
           .hero-stat-row { gap: 32px; }
+          .section-title { margin-bottom: 40px; }
+        }
+
+        @media (max-width: 480px) {
+          .hero-actions { flex-direction: column; align-items: flex-start; gap: 18px; }
+          .btn-primary { width: 100%; justify-content: center; }
+          .hero-stat-row { gap: 24px 40px; }
         }
       `}</style>
 

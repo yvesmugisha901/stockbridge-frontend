@@ -6,7 +6,7 @@ import { restoreSession } from "@/lib/api/client"
 import { useAuthContext } from "@/lib/context/AuthContext"
 import { getUser } from "@/lib/auth/tokens"
 
-const PUBLIC_PATHS = ["/login", "/register", "/forgot-password"]
+const PUBLIC_PATHS = ["/", "/login", "/register", "/forgot-password"]
 
 export default function SessionProvider({ children }) {
   const pathname  = usePathname()
