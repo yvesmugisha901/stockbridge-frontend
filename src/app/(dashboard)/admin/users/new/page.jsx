@@ -25,6 +25,29 @@ function genPassword() {
   return Array.from({ length: 10 }, () => c[Math.floor(Math.random() * c.length)]).join("")
 }
 
+// ── Debug panel ────────────────────────────────────────────────────────────
+function DebugPanel({ step, createdUser }) {
+  return (
+    <div style={{
+      position: "fixed", bottom: 12, right: 12, zIndex: 9999,
+      background: "#1a1f0e", color: "#a3e635",
+      fontFamily: "'DM Mono', monospace", fontSize: 11,
+      padding: "12px 16px", borderRadius: 6, maxWidth: 360,
+      boxShadow: "0 4px 16px rgba(0,0,0,0.4)", lineHeight: 1.6,
+      whiteSpace: "pre-wrap", wordBreak: "break-all",
+    }}>
+      <div style={{ color: "#fbbf24", fontWeight: 700, marginBottom: 6 }}>DEBUG</div>
+      <div>step: <strong>{step}</strong></div>
+      <div>createdUser: {createdUser ? "SET ✅" : "null ❌"}</div>
+      {createdUser && (
+        <div style={{ marginTop: 6, color: "#86efac" }}>
+          {JSON.stringify(createdUser, null, 2)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Full Gmail-style modal ────────────────────────────────────────────────────
 function GmailModal({ user, branches, onClose }) {
   const [selected, setSelected] = useState("inbox")
@@ -322,7 +345,7 @@ export default function NewUserPage({ branches = [] }) {
 
   async function doCreate() {
     try {
-      await api.post("/users", {
+      const res = await api.post("/users", {
         username: form.name.trim().toLowerCase().replace(/\s+/g, ".").replace(/[^a-z0-9.]/g, ""),
         fullName: form.name.trim(),
         email:    form.email.trim(),
@@ -330,9 +353,13 @@ export default function NewUserPage({ branches = [] }) {
         role:     form.role,
         branchId: form.branch ? Number(form.branch) : null,
       })
+
+      console.log("✅ create success, response:", res)
       setCreatedUser({ ...form })
-      setStep("confirm")   // ← confirmation card first
+      console.log("✅ setStep -> confirm, createdUser ->", { ...form })
+      setStep("confirm")
     } catch (err) {
+      console.error("❌ create failed:", err)
       toast.error(err.message ?? "Failed to create user")
       setStep("form")
     }
@@ -348,182 +375,187 @@ export default function NewUserPage({ branches = [] }) {
 
   // ── form ──────────────────────────────────────────────────────────────────
   if (step === "form") return (
-    <div style={{ maxWidth: 580, display: "flex", flexDirection: "column", gap: 20 }}>
-      <PageHeader title="Create User" subtitle="A welcome email with login credentials will be sent after the account is created." />
-      <div style={{ background: "#fff", border: "1px solid #dde0d4" }}>
-        <form onSubmit={handleSubmit} noValidate style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 16 }}>
+    <>
+      <DebugPanel step={step} createdUser={createdUser} />
+      <div style={{ maxWidth: 580, display: "flex", flexDirection: "column", gap: 20 }}>
+        <PageHeader title="Create User" subtitle="A welcome email with login credentials will be sent after the account is created." />
+        <div style={{ background: "#fff", border: "1px solid #dde0d4" }}>
+          <form onSubmit={handleSubmit} noValidate style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 16 }}>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            {[["Full name","name","text","e.g. Alice Uwimana"],["Email","email","email","alice@company.rw"]].map(([label,k,type,ph]) => (
-              <div key={k} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                <label style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: ".1em", color: errors[k] ? "#dc2626" : "#6b7260" }}>{label}</label>
-                <input type={type} value={form[k]} placeholder={ph} onChange={e => set(k, e.target.value)} style={inp(errors[k])} />
-                {errors[k] && <span style={{ fontSize: 11, color: "#dc2626" }}>{errors[k]}</span>}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              {[["Full name","name","text","e.g. Alice Uwimana"],["Email","email","email","alice@company.rw"]].map(([label,k,type,ph]) => (
+                <div key={k} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  <label style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: ".1em", color: errors[k] ? "#dc2626" : "#6b7260" }}>{label}</label>
+                  <input type={type} value={form[k]} placeholder={ph} onChange={e => set(k, e.target.value)} style={inp(errors[k])} />
+                  {errors[k] && <span style={{ fontSize: 11, color: "#dc2626" }}>{errors[k]}</span>}
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                <label style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: ".1em", color: errors.role ? "#dc2626" : "#6b7260" }}>Role</label>
+                <select value={form.role} onChange={e => set("role", e.target.value)} style={inp(errors.role)}>
+                  <option value="">Select a role</option>
+                  {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                </select>
+                {errors.role && <span style={{ fontSize: 11, color: "#dc2626" }}>{errors.role}</span>}
               </div>
-            ))}
-          </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                <label style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: ".1em", color: "#6b7260" }}>Branch</label>
+                <select value={form.branch} onChange={e => set("branch", e.target.value)} style={inp(false)}>
+                  <option value="">— No branch —</option>
+                  {branches.map(b => <option key={b.id} value={String(b.id)}>{b.name} ({b.code})</option>)}
+                </select>
+              </div>
+            </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-              <label style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: ".1em", color: errors.role ? "#dc2626" : "#6b7260" }}>Role</label>
-              <select value={form.role} onChange={e => set("role", e.target.value)} style={inp(errors.role)}>
-                <option value="">Select a role</option>
-                {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
-              {errors.role && <span style={{ fontSize: 11, color: "#dc2626" }}>{errors.role}</span>}
+              <label style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: ".1em", color: "#6b7260" }}>Temporary Password</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input value={form.password} onChange={e => set("password", e.target.value)} style={{ ...inp(false), flex: 1 }} />
+                <button type="button" onClick={() => set("password", genPassword())} style={{ background: "#f7f8f4", border: "1px solid #dde0d4", padding: "0 14px", cursor: "pointer", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#6b7260", whiteSpace: "nowrap" }}>Regenerate</button>
+              </div>
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#9ba590" }}>User will be prompted to change this on first login</span>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-              <label style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: ".1em", color: "#6b7260" }}>Branch</label>
-              <select value={form.branch} onChange={e => set("branch", e.target.value)} style={inp(false)}>
-                <option value="">— No branch —</option>
-                {branches.map(b => <option key={b.id} value={String(b.id)}>{b.name} ({b.code})</option>)}
-              </select>
-            </div>
-          </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            <label style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: ".1em", color: "#6b7260" }}>Temporary Password</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input value={form.password} onChange={e => set("password", e.target.value)} style={{ ...inp(false), flex: 1 }} />
-              <button type="button" onClick={() => set("password", genPassword())} style={{ background: "#f7f8f4", border: "1px solid #dde0d4", padding: "0 14px", cursor: "pointer", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#6b7260", whiteSpace: "nowrap" }}>Regenerate</button>
+            <div style={{ display: "flex", gap: 10, paddingTop: 4 }}>
+              <button type="submit" style={{ background: "#1a1f0e", color: "#fff", border: "none", padding: "10px 24px", cursor: "pointer", fontFamily: "'DM Mono', monospace", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase" }}>Create User</button>
+              <button type="button" onClick={() => router.back()} style={{ background: "#f7f8f4", color: "#6b7260", border: "1px solid #dde0d4", padding: "10px 18px", cursor: "pointer", fontFamily: "'DM Mono', monospace", fontSize: 11 }}>Cancel</button>
             </div>
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#9ba590" }}>User will be prompted to change this on first login</span>
-          </div>
-
-          <div style={{ display: "flex", gap: 10, paddingTop: 4 }}>
-            <button type="submit" style={{ background: "#1a1f0e", color: "#fff", border: "none", padding: "10px 24px", cursor: "pointer", fontFamily: "'DM Mono', monospace", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase" }}>Create User</button>
-            <button type="button" onClick={() => router.back()} style={{ background: "#f7f8f4", color: "#6b7260", border: "1px solid #dde0d4", padding: "10px 18px", cursor: "pointer", fontFamily: "'DM Mono', monospace", fontSize: 11 }}>Cancel</button>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
-    </div>
+    </>
   )
 
   // ── sending ────────────────────────────────────────────────────────────────
   if (step === "sending") return (
-    <div style={{ maxWidth: 580, display: "flex", flexDirection: "column", gap: 20 }}>
-      <PageHeader title="Create User" subtitle="" />
-      <div style={{ background: "#fff", border: "1px solid #dde0d4", padding: "48px 28px", display: "flex", flexDirection: "column", alignItems: "center", gap: 20, textAlign: "center" }}>
-        <div style={{ position: "relative", width: 48, height: 48 }}>
-          <div style={{ position: "absolute", inset: 0, border: "3px solid #f1f3f4", borderRadius: "50%" }} />
-          <div style={{ position: "absolute", inset: 0, border: "3px solid transparent", borderTopColor: "#4285F4", borderRightColor: "#EA4335", borderRadius: "50%", animation: "spin .8s linear infinite" }} />
-        </div>
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "#1a1f0e", fontWeight: 600 }}>{sendingMsg}</div>
-          <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 4 }}>
-            {SENDING_STEPS.map((_, i) => (
-              <div key={i} style={{ width: i === sendingIdx ? 20 : 6, height: 6, borderRadius: 3, background: i <= sendingIdx ? "#4285F4" : "#e0e0e0", transition: "all .3s ease" }} />
-            ))}
+    <>
+      <DebugPanel step={step} createdUser={createdUser} />
+      <div style={{ maxWidth: 580, display: "flex", flexDirection: "column", gap: 20 }}>
+        <PageHeader title="Create User" subtitle="" />
+        <div style={{ background: "#fff", border: "1px solid #dde0d4", padding: "48px 28px", display: "flex", flexDirection: "column", alignItems: "center", gap: 20, textAlign: "center" }}>
+          <div style={{ position: "relative", width: 48, height: 48 }}>
+            <div style={{ position: "absolute", inset: 0, border: "3px solid #f1f3f4", borderRadius: "50%" }} />
+            <div style={{ position: "absolute", inset: 0, border: "3px solid transparent", borderTopColor: "#4285F4", borderRightColor: "#EA4335", borderRadius: "50%", animation: "spin .8s linear infinite" }} />
+          </div>
+          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: "#1a1f0e", fontWeight: 600 }}>{sendingMsg}</div>
+            <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 4 }}>
+              {SENDING_STEPS.map((_, i) => (
+                <div key={i} style={{ width: i === sendingIdx ? 20 : 6, height: 6, borderRadius: 3, background: i <= sendingIdx ? "#4285F4" : "#e0e0e0", transition: "all .3s ease" }} />
+              ))}
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" stroke="#4285F4" strokeWidth="2"/></svg>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#9ba590" }}>
+              Connecting via <span style={{ color: "#4285F4", fontWeight: 600 }}>Gmail</span> SMTP · smtp.gmail.com:587
+            </span>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" stroke="#4285F4" strokeWidth="2"/></svg>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#9ba590" }}>
-            Connecting via <span style={{ color: "#4285F4", fontWeight: 600 }}>Gmail</span> SMTP · smtp.gmail.com:587
-          </span>
-        </div>
       </div>
-    </div>
+    </>
   )
 
   // ── confirmation card ──────────────────────────────────────────────────────
   if (step === "confirm") return (
-    <div style={{ maxWidth: 580, display: "flex", flexDirection: "column", gap: 20 }}>
-      <PageHeader title="User Created" subtitle="Account is active. Login credentials delivered." />
-      <div style={{ background: "#fff", border: "1px solid #dde0d4" }}>
+    <>
+      <DebugPanel step={step} createdUser={createdUser} />
+      <div style={{ maxWidth: 580, display: "flex", flexDirection: "column", gap: 20 }}>
+        <PageHeader title="User Created" subtitle="Account is active. Login credentials delivered." />
 
-        {/* green stripe with credentials */}
-        <div style={{ background: "#f0fdf4", borderBottom: "1px solid #bbf7d0", padding: "16px 20px", display: "flex", alignItems: "flex-start", gap: 12 }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" style={{ flexShrink: 0, marginTop: 2 }}>
-            <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
+        {/* BIG prominent View Email banner — impossible to miss */}
+        <button
+          onClick={() => setStep("gmail")}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+            background: "#1a73e8", color: "#fff", border: "none",
+            padding: "16px 24px", cursor: "pointer",
+            fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700,
+            letterSpacing: ".08em", textTransform: "uppercase",
+            borderRadius: 4, boxShadow: "0 2px 8px rgba(26,115,232,0.3)",
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+            <rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/>
           </svg>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 600, color: "#166534", marginBottom: 12 }}>
-              Account created for {createdUser.name}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-              {[
-                { label: "Email sent to", value: createdUser.email },
-                { label: "Temp password", value: createdUser.password, highlight: true },
-                { label: "Role",          value: ROLES.find(r => r.value === createdUser.role)?.label ?? createdUser.role },
-              ].map(row => (
-                <div key={row.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#166534", opacity: .65, width: 110, flexShrink: 0, textTransform: "uppercase", letterSpacing: ".07em" }}>{row.label}</span>
-                  <span style={{
-                    fontFamily: "'DM Mono', monospace",
-                    fontSize: 12, fontWeight: row.highlight ? 700 : 500,
-                    color: row.highlight ? "#78350f" : "#166534",
-                    background: row.highlight ? "#fef9c3" : "transparent",
-                    border: row.highlight ? "1px solid #fde047" : "none",
-                    padding: row.highlight ? "2px 10px" : "0",
-                    borderRadius: row.highlight ? 4 : 0,
-                    letterSpacing: row.highlight ? ".06em" : "normal",
-                  }}>
-                    {row.value}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#166534", opacity: .6, marginTop: 12, lineHeight: 1.6 }}>
-              These credentials were sent to the user via Gmail SMTP.
-              Click below to see the exact email they received in their inbox.
+          View Email Sent to {createdUser?.email}
+        </button>
+
+        <div style={{ background: "#fff", border: "1px solid #dde0d4" }}>
+
+          {/* green stripe with credentials */}
+          <div style={{ background: "#f0fdf4", borderBottom: "1px solid #bbf7d0", padding: "16px 20px", display: "flex", alignItems: "flex-start", gap: 12 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" style={{ flexShrink: 0, marginTop: 2 }}>
+              <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
+            </svg>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 600, color: "#166534", marginBottom: 12 }}>
+                Account created for {createdUser?.name}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {[
+                  { label: "Email sent to", value: createdUser?.email },
+                  { label: "Temp password", value: createdUser?.password, highlight: true },
+                  { label: "Role",          value: ROLES.find(r => r.value === createdUser?.role)?.label ?? createdUser?.role },
+                ].map(row => (
+                  <div key={row.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#166534", opacity: .65, width: 110, flexShrink: 0, textTransform: "uppercase", letterSpacing: ".07em" }}>{row.label}</span>
+                    <span style={{
+                      fontFamily: "'DM Mono', monospace",
+                      fontSize: 12, fontWeight: row.highlight ? 700 : 500,
+                      color: row.highlight ? "#78350f" : "#166534",
+                      background: row.highlight ? "#fef9c3" : "transparent",
+                      border: row.highlight ? "1px solid #fde047" : "none",
+                      padding: row.highlight ? "2px 10px" : "0",
+                      borderRadius: row.highlight ? 4 : 0,
+                      letterSpacing: row.highlight ? ".06em" : "normal",
+                    }}>
+                      {row.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#166534", opacity: .6, marginTop: 12, lineHeight: 1.6 }}>
+                These credentials were sent to the user via Gmail SMTP.
+                Click the button above to see the exact email they received in their inbox.
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* CTA row */}
-        <div style={{ padding: "20px 24px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-          {/* Gmail badge */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#f8f9fa", border: "1px solid #e0e0e0", padding: "8px 14px", borderRadius: 4 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 1 }}>
-              {[["#4285F4","G"],["#EA4335","m"],["#FBBC04","a"],["#4285F4","i"],["#34A853","l"]].map(([c,l],i) => (
-                <span key={i} style={{ color: c, fontSize: 15, fontWeight: i === 0 ? 700 : 400, lineHeight: 1 }}>{l}</span>
-              ))}
-            </div>
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#5f6368" }}>SMTP · smtp.gmail.com:587</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34a853" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          {/* footer actions */}
+          <div style={{ padding: "14px 24px", borderTop: "1px solid #dde0d4", background: "#f7f8f4", display: "flex", gap: 10 }}>
+            <button
+              onClick={() => { setForm({ name: "", email: "", role: "", branch: "", password: genPassword() }); setErrors({}); setCreatedUser(null); setStep("form") }}
+              style={{ background: "#1a1f0e", color: "#fff", border: "none", padding: "9px 20px", cursor: "pointer", fontFamily: "'DM Mono', monospace", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase" }}
+            >
+              + Create Another
+            </button>
+            <button
+              onClick={() => router.push("/users")}
+              style={{ background: "#f7f8f4", color: "#6b7260", border: "1px solid #dde0d4", padding: "9px 18px", cursor: "pointer", fontFamily: "'DM Mono', monospace", fontSize: 11 }}
+            >
+              Back to Users
+            </button>
           </div>
-
-          {/* view email button */}
-          <button
-            onClick={() => setStep("gmail")}
-            style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid #1a1f0e", padding: "9px 18px", cursor: "pointer", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#1a1f0e", letterSpacing: ".06em", textTransform: "uppercase" }}
-            onMouseEnter={e => e.currentTarget.style.background = "#f7f8f4"}
-            onMouseLeave={e => e.currentTarget.style.background = "#fff"}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a1f0e" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>
-            View Email Sent to User
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b7260" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </button>
-        </div>
-
-        {/* footer actions */}
-        <div style={{ padding: "14px 24px", borderTop: "1px solid #dde0d4", background: "#f7f8f4", display: "flex", gap: 10 }}>
-          <button
-            onClick={() => { setForm({ name: "", email: "", role: "", branch: "", password: genPassword() }); setErrors({}); setCreatedUser(null); setStep("form") }}
-            style={{ background: "#1a1f0e", color: "#fff", border: "none", padding: "9px 20px", cursor: "pointer", fontFamily: "'DM Mono', monospace", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase" }}
-          >
-            + Create Another
-          </button>
-          <button
-            onClick={() => router.push("/users")}
-            style={{ background: "#f7f8f4", color: "#6b7260", border: "1px solid #dde0d4", padding: "9px 18px", cursor: "pointer", fontFamily: "'DM Mono', monospace", fontSize: 11 }}
-          >
-            Back to Users
-          </button>
         </div>
       </div>
-    </div>
+    </>
   )
 
   // ── full Gmail simulation ──────────────────────────────────────────────────
   // step === "gmail"
   return (
-    <GmailModal
-      user={createdUser}
-      branches={branches}
-      onClose={() => setStep("confirm")}
-    />
+    <>
+      <DebugPanel step={step} createdUser={createdUser} />
+      <GmailModal
+        user={createdUser}
+        branches={branches}
+        onClose={() => setStep("confirm")}
+      />
+    </>
   )
 }

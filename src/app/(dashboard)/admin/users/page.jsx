@@ -62,6 +62,8 @@ export default function UsersPage() {
   function openEdit(u)  { setEditing(u);    setModal(true) }
 
   // ─── save (create or update) ──────────────────────────────────────────────────
+  // IMPORTANT: must return { user, plainPassword, emailPreview?, emailError? }
+  // for UserFormModal's confirm/email-preview steps to work (see its header comment).
   async function handleSave(formData) {
     const isEdit = Boolean(editing)
     const url    = isEdit ? `${API}/users/${editing.id}` : `${API}/users`
@@ -79,8 +81,25 @@ export default function UsersPage() {
       const j = await res.json().catch(() => ({}))
       throw new Error(j.message ?? `HTTP ${res.status}`)
     }
-    setModal(false)
+
+    const j = await res.json()
     loadUsers(page)
+
+    if (isEdit) {
+      // Edits don't show the email simulation — close immediately as before.
+      setModal(false)
+      return { user: j.data }
+    }
+
+    // For CREATE: do NOT close the modal here.
+    // UserFormModal handles its own sending → confirm → email steps,
+    // and calls onClose (which closes the modal) when the admin clicks "Done".
+    return {
+      user:          j.data,
+      plainPassword: formData.password,
+      emailPreview:  null,   // backend doesn't expose a hosted preview URL — null hides "Open real email"
+      emailError:    null,   // backend always "succeeds" (simulated), so no error path needed
+    }
   }
 
   // ─── delete user ──────────────────────────────────────────────────────────────
@@ -98,7 +117,6 @@ export default function UsersPage() {
   }
 
   // ─── toggle active / deactivate ───────────────────────────────────────────────
-  // ✅ renamed from handleToggleActive → now matches UsersTable's onDeactivate prop
   async function handleDeactivate(user) {
     const path = user.active ? "deactivate" : "activate"
     const res  = await fetch(`${API}/users/${user.id}/${path}`, {
@@ -159,7 +177,7 @@ export default function UsersPage() {
         users={users}
         loading={loading}
         onEdit={openEdit}
-        onDeactivate={handleDeactivate} 
+        onDeactivate={handleDeactivate}
       />
 
       {/* Pagination */}
@@ -194,7 +212,7 @@ export default function UsersPage() {
         branches={branches}
         onClose={() => setModal(false)}
         onSave={handleSave}
-        onDelete={handleDelete}  
+        onDelete={handleDelete}
       />
     </div>
   )

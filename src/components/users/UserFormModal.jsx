@@ -433,17 +433,18 @@ export default function UserFormModal({ open, user, branches = [], onClose, onSa
   const isEdit = Boolean(user)
 
   useEffect(() => {
-    if (open) {
-      if (user) {
-        setForm({ fullName: user.fullName ?? "", email: user.email ?? "", password: "", role: user.role ?? "", branchId: user.branchId != null ? String(user.branchId) : "" })
-      } else {
-        setForm({ ...EMPTY, password: genPassword() })
-      }
-      setErrors({})
-      setStep("form")
-      setCreated(null)
+  if (open) {
+    if (user) {
+      setForm({ fullName: user.fullName ?? "", email: user.email ?? "", password: "", role: user.role ?? "", branchId: user.branchId != null ? String(user.branchId) : "" })
+    } else {
+      setForm({ ...EMPTY, password: genPassword() })
     }
-  }, [open, user])
+    setErrors({})
+    setStep("form")
+    setCreated(null)
+    setDeleting(false)   // ← add this
+  }
+}, [open, user])
 
   if (!open) return null
 
@@ -517,17 +518,18 @@ export default function UserFormModal({ open, user, branches = [], onClose, onSa
     }
   }
 
-  async function confirmDelete() {
-    setDeleting(true)
-    try {
-      await onDelete(user.id)
-      toast.success(`${user.fullName} deleted`)
-    } catch (err) {
-      toast.error(err.message ?? "Delete failed")
-      setDeleting(false)
-      setStep("form")
-    }
+ async function confirmDelete() {
+  setDeleting(true)
+  try {
+    await onDelete(user.id)
+    toast.success(`${user.fullName} deleted`)
+    setDeleting(false)   // ← optional belt-and-suspenders
+  } catch (err) {
+    toast.error(err.message ?? "Delete failed")
+    setDeleting(false)
+    setStep("form")
   }
+}
 
   const usernamePreview = form.fullName.trim() ? toUsername(form.fullName) : null
 
