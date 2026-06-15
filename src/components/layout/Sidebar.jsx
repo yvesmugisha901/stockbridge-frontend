@@ -214,14 +214,14 @@ export default function Sidebar({ isOpen = false, onClose }) {
           </span>
         </div>
 
-        {/* Close button — only visible on mobile drawer */}
+        {/* Close button — hidden on desktop, visible on mobile only via CSS */}
         <button
           onClick={onClose}
           className="sidebar-close"
           aria-label="Close menu"
           style={{
             background: "none", border: "none", cursor: "pointer",
-            color: "#6b7260", padding: 4, display: "flex",
+            color: "#6b7260", padding: 4, display: "none", // ← hidden by default on desktop
           }}
         >
           <CloseIcon />
