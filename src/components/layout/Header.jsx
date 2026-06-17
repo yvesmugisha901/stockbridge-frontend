@@ -34,14 +34,10 @@ function MenuIcon() {
 }
 
 export default function Header({ notifications = [], onMarkAllRead, onMarkRead, onMenuClick }) {
-  const { user, logout } = useAuthContext()
+  const { logout } = useAuthContext()
   const [bellOpen, setBellOpen] = useState(false)
   const bellRef = useRef(null)
   const unreadCount = notifications.filter(n => !n.read).length
-
-  // Resolve name — tries every field the JWT might use
-  const displayName = user?.fullName || user?.full_name || user?.name || user?.username || user?.sub || "—"
-  const initial     = displayName.charAt(0).toUpperCase()
 
   useEffect(() => {
     if (!bellOpen) return
@@ -138,34 +134,6 @@ export default function Header({ notifications = [], onMarkAllRead, onMarkRead, 
               />
             </div>
           )}
-        </div>
-
-        {/* Divider */}
-        <div className="header-divider" style={{ width: 1, height: 20, background: "#dde0d4" }} />
-
-        {/* Avatar + Name */}
-        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          <span style={{
-            width: 30, height: 30, borderRadius: "50%",
-            background: "#e4f0df", color: "#3d7a2b",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 600,
-            flexShrink: 0,
-          }}>
-            {initial}
-          </span>
-          <span className="header-username" style={{
-            fontFamily: "'DM Mono', monospace",
-            fontSize: 12,
-            color: "#1a1f0e",
-            letterSpacing: "0.02em",
-            maxWidth: 160,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}>
-            {displayName}
-          </span>
         </div>
 
         {/* Divider */}
