@@ -75,12 +75,12 @@ export default function StaffDashboard() {
   const branchName = user?.branchName || "Your Branch"
   const fullName   = user?.fullName   || "Branch Staff"
 
-  const [stock,          setStock]          = useState([])
-  const [transfers,      setTransfers]      = useState([])
+  const [stock,           setStock]         = useState([])
+  const [transfers,       setTransfers]     = useState([])
   const [readyToDispatch, setReady]         = useState([])
-  const [incoming,       setIncoming]       = useState([])
-  const [loading,        setLoading]        = useState(true)
-  const [actionLoading,  setActionLoading]  = useState(null)
+  const [incoming,        setIncoming]      = useState([])
+  const [loading,         setLoading]       = useState(true)
+  const [actionLoading,   setActionLoading] = useState(null)
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -132,8 +132,8 @@ export default function StaffDashboard() {
     } finally { setActionLoading(null) }
   }
 
-  const lowStockItems  = stock.filter(s => s.quantityOnHand <= s.minimumThreshold)
-  const pendingCount   = transfers.filter(t => t.status === "PENDING").length
+  const lowStockItems = stock.filter(s => s.quantityOnHand <= s.minimumThreshold)
+  const pendingCount  = transfers.filter(t => t.status === "PENDING").length
 
   if (loading) return <LoadingPage fullName={fullName} branchName={branchName} />
 
@@ -159,15 +159,15 @@ export default function StaffDashboard() {
       {/* ── Stat Cards ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
         <StatCard icon={<IconPackage />} iconBg="#f0f7ed" iconColor="#3d7a2b"
-          label="Items in Stock"        value={stock.length}         valueColor="#1a1f0e" />
+          label="Items in Stock"        value={stock.length}            valueColor="#1a1f0e" />
         <StatCard icon={<IconClock />}   iconBg="#fefce8" iconColor="#ca8a04"
-          label="My Pending Requests"   value={pendingCount}         valueColor="#ca8a04" />
+          label="My Pending Requests"   value={pendingCount}            valueColor="#ca8a04" />
         <StatCard icon={<IconTruck />}   iconBg="#f3e8ff" iconColor="#7e22ce"
-          label="Ready to Ship"         value={readyToDispatch.length} valueColor="#7e22ce" />
+          label="Ready to Ship"         value={readyToDispatch.length}  valueColor="#7e22ce" />
         <StatCard icon={<IconInbox />}   iconBg="#e0e7ff" iconColor="#4338ca"
-          label="Incoming to Branch"    value={incoming.length}      valueColor="#4338ca" />
+          label="Incoming to Branch"    value={incoming.length}         valueColor="#4338ca" />
         <StatCard icon={<IconAlert />}   iconBg="#fef2f2" iconColor="#dc2626"
-          label="Low Stock Alerts"      value={lowStockItems.length} valueColor="#dc2626" />
+          label="Low Stock Alerts"      value={lowStockItems.length}    valueColor="#dc2626" />
       </div>
 
       {/* ── Ready to Ship ── */}
@@ -281,14 +281,35 @@ function ActionTable({ rows, actionLabel, actionColor, actionBg, actionLoading, 
               <Td mono small>{t.requestedAt ? new Date(t.requestedAt).toLocaleDateString() : "—"}</Td>
               <td style={{ padding: "12px 20px" }}>
                 <button onClick={() => onAction(t.id)} disabled={actionLoading === t.id} style={{
-                  background: actionLoading === t.id ? "#f3f4f6" : actionBg,
-                  color: actionLoading === t.id ? "#9ca3af" : actionColor,
-                  border: "none", borderRadius: 6, padding: "6px 16px",
-                  fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 600,
-                  cursor: actionLoading === t.id ? "not-allowed" : "pointer", whiteSpace: "nowrap",
-                }}>
-                  {actionLoading === t.id ? "…" : actionLabel}
-                </button>
+  background: actionLoading === t.id ? "#f3f4f6" : actionBg,
+  color: actionLoading === t.id ? "#9ca3af" : actionColor,
+  border: `1.5px solid ${actionLoading === t.id ? "#e5e7eb" : actionColor}`,
+  borderRadius: 6,
+  padding: "7px 14px",
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: actionLoading === t.id ? "not-allowed" : "pointer",
+  whiteSpace: "nowrap",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 5,
+  boxShadow: actionLoading === t.id ? "none" : "0 1px 3px rgba(0,0,0,0.08)",
+  transition: "opacity 0.15s",
+}
+}
+onMouseEnter={e => { if (actionLoading !== t.id) e.currentTarget.style.opacity = "0.8" }}
+onMouseLeave={e => { e.currentTarget.style.opacity = "1" }}
+>
+  {actionLoading === t.id ? "…" : (
+    <>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+      {actionLabel}
+    </>
+  )}
+</button>
               </td>
             </tr>
           ))}
@@ -299,6 +320,8 @@ function ActionTable({ rows, actionLabel, actionColor, actionBg, actionLoading, 
 }
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
+
+// ✅ FIX: replaced <a> with Next.js <Link> to prevent full page reload and auth logout
 function Section({ icon, iconColor, title, subtitle, link, children }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -310,7 +333,22 @@ function Section({ icon, iconColor, title, subtitle, link, children }) {
           </div>
           {subtitle && <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#6b7260", margin: "4px 0 0", paddingLeft: 28 }}>{subtitle}</p>}
         </div>
-        {link && <a href={link.href} style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#3d7a2b", textDecoration: "none", fontWeight: 500, whiteSpace: "nowrap", paddingTop: 2 }}>{link.label}</a>}
+        {link && (
+          <Link
+            href={link.href}
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 12,
+              color: "#3d7a2b",
+              textDecoration: "none",
+              fontWeight: 500,
+              whiteSpace: "nowrap",
+              paddingTop: 2,
+            }}
+          >
+            {link.label}
+          </Link>
+        )}
       </div>
       {children}
     </div>

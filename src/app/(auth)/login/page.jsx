@@ -3,7 +3,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import toast from "react-hot-toast"
-import { saveToken } from "@/lib/auth/tokens"        // ← new in-memory store
+import { saveToken } from "@/lib/auth/tokens"
 import { useAuthContext } from "@/lib/context/AuthContext"
 import { ROLE_HOME } from "@/lib/utils/constants"
 import { jwtDecode } from "jwt-decode"
@@ -23,14 +23,13 @@ export default function LoginPage() {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify(form),
-        credentials: "include",   // ← critical: lets browser store the httpOnly refresh_token cookie
+        credentials: "include",
       })
       if (!res.ok) throw new Error("Invalid email or password")
 
       const data    = await res.json()
       const decoded = jwtDecode(data.token)
 
-      // Save access token in memory (replaces old cookie approach)
       saveToken(data.token)
 
       setUser({
@@ -174,15 +173,28 @@ export default function LoginPage() {
 
         </form>
 
-        {/* Footer */}
+        {/* Footer — links to /register */}
         <div style={{
           borderTop: "1px solid #dde0d4", padding: "12px 32px",
           display: "flex", justifyContent: "space-between", alignItems: "center",
         }}>
           <span style={{ fontSize: 11, color: "#6b7260" }}>Need access?</span>
-          <span style={{ fontSize: 11, color: "#3d7a2b", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            Contact administrator
-          </span>
+          <Link
+            href="/register"
+            style={{
+              fontSize: 11, color: "#3d7a2b", textDecoration: "none",
+              textTransform: "uppercase", letterSpacing: "0.08em",
+              display: "inline-flex", alignItems: "center", gap: 5,
+              fontFamily: "'DM Mono', monospace",
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.color = "#2a5a1e"}
+            onMouseLeave={(e) => e.currentTarget.style.color = "#3d7a2b"}
+          >
+            Request access
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+            </svg>
+          </Link>
         </div>
 
       </div>

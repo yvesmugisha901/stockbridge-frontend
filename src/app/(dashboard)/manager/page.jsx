@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { useAuthContext } from "@/lib/context/AuthContext"
 import { api } from "@/lib/api/client"
 import toast from "react-hot-toast"
+import Link from "next/link"
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 const IconClock = () => (
@@ -63,8 +64,6 @@ const STATUS_LABEL = {
   CANCELLED: "Cancelled",
 }
 
-// ─── Helper: resolve "Requested By" from multiple possible field names ────────
-// The backend may return any of these — we try them all in order.
 function getRequestedBy(t) {
   return (
     t.requestedByName    ||
@@ -124,7 +123,6 @@ export default function ManagerDashboard() {
 
   useEffect(() => { loadDashboard() }, [loadDashboard])
 
-  // ── Poll for new pending approvals every 30s (drives notification badge) ──
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
@@ -142,7 +140,7 @@ export default function ManagerDashboard() {
             return incoming
           })
         }
-      } catch { /* silent — don't disrupt the user */ }
+      } catch { /* silent */ }
     }, 30_000)
     return () => clearInterval(interval)
   }, [])
@@ -169,8 +167,6 @@ export default function ManagerDashboard() {
     } finally { setActionLoading(null) }
   }
 
-  // ── Navigate to approvals page and auto-focus a specific transfer ──────────
-  // Points to the dedicated review detail page for this transfer
   const handleReview = (transferId) => {
     router.push(`/manager/approvals/${transferId}`)
   }
@@ -223,11 +219,9 @@ export default function ManagerDashboard() {
                         <Td bold>{t.itemName}</Td>
                         <Td>{t.quantity}</Td>
                         <Td>{t.sourceBranchName} → {t.destinationBranchName}</Td>
-                        {/* FIX: show requestedBy with fallback chain */}
                         <Td>{requestedBy ?? <span style={{ color: "#d1d5db", fontStyle: "italic" }}>Unknown</span>}</Td>
                         <Td mono small>{t.requestedAt ? new Date(t.requestedAt).toLocaleDateString() : "—"}</Td>
                         <td style={{ padding: "12px 20px" }}>
-                          {/* FIX: use router.push with transfer ID instead of static href */}
                           <button
                             onClick={() => handleReview(t.id)}
                             style={{
@@ -368,7 +362,11 @@ function Section({ icon, iconColor, title, subtitle, link, children }) {
           </div>
           {subtitle && <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#6b7260", margin: "4px 0 0", paddingLeft: 28 }}>{subtitle}</p>}
         </div>
-        {link && <a href={link.href} style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#3d7a2b", textDecoration: "none", fontWeight: 500, whiteSpace: "nowrap", paddingTop: 2 }}>{link.label}</a>}
+        {link && (
+          <Link href={link.href} style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#3d7a2b", textDecoration: "none", fontWeight: 500, whiteSpace: "nowrap", paddingTop: 2 }}>
+            {link.label}
+          </Link>
+        )}
       </div>
       {children}
     </div>

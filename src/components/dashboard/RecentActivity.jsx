@@ -2,6 +2,7 @@
  * RecentActivity — latest audit log events for Admin dashboard
  * Props: activities [{ user, action, entity, time, type }]
  */
+import Link from "next/link"
 
 const TYPE_COLORS = {
   create: { bg: "#f0f7ed", color: "#3d7a2b" },
@@ -14,7 +15,6 @@ export default function RecentActivity({ activities = [] }) {
   return (
     <div style={{ background: "#fff", border: "1px solid #dde0d4", padding: "24px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        {/* Title — visible, Inter semibold, not the tiny mono label */}
         <p style={{
           fontFamily: "'Inter', sans-serif",
           fontSize: 14,
@@ -25,7 +25,7 @@ export default function RecentActivity({ activities = [] }) {
         }}>
           Recent Activity
         </p>
-        <a href="/admin/logs" style={{
+        <Link href="/admin/logs" style={{
           fontFamily: "'DM Mono', monospace",
           fontSize: 10,
           color: "#3d7a2b",
@@ -34,7 +34,7 @@ export default function RecentActivity({ activities = [] }) {
           letterSpacing: "0.08em",
         }}>
           View all →
-        </a>
+        </Link>
       </div>
 
       {activities.length === 0 ? (
@@ -56,7 +56,6 @@ export default function RecentActivity({ activities = [] }) {
                   borderBottom: i < activities.length - 1 ? "1px solid #f0f1ec" : "none",
                 }}
               >
-                {/* type badge — DM Mono, it's a code/pill */}
                 <span style={{
                   width: 28,
                   height: 28,
@@ -75,7 +74,6 @@ export default function RecentActivity({ activities = [] }) {
                 </span>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  {/* action text — Inter regular */}
                   <p style={{
                     fontFamily: "'Inter', sans-serif",
                     fontSize: 13,
@@ -88,7 +86,6 @@ export default function RecentActivity({ activities = [] }) {
                   }}>
                     {a.action}
                   </p>
-                  {/* meta — Inter light */}
                   <p style={{
                     fontFamily: "'Inter', sans-serif",
                     fontSize: 11,
