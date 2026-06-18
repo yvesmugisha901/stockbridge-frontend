@@ -117,7 +117,6 @@ function DetailDrawer({ transfer, defaultAction, onClose, onApprove, onReject, s
               ["Requested At",  transfer.requestedAt
                 ? new Date(transfer.requestedAt).toLocaleString()
                 : "—"],
-              ["HO Approval Required", transfer.requiresHoApproval ? "Yes" : "No"],
             ].map(([k, v]) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 10, borderBottom: "1px solid #f0f1ec" }}>
                 <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: "#9ca3af" }}>{k}</span>
@@ -173,7 +172,11 @@ function DetailDrawer({ transfer, defaultAction, onClose, onApprove, onReject, s
           {!alreadyActioned && (
             <div>
               <label style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.14em", color: "#6b7260", marginBottom: 8 }}>
-                Your Comment {defaultAction === "reject" ? <span style={{ color: "#dc2626" }}>*required</span> : "(required on rejection)"}
+                {defaultAction === "reject" ? (
+                  <>Comment <span style={{ color: "#dc2626" }}>*required</span></>
+                ) : (
+                  "Comment"
+                )}
               </label>
               <textarea
                 id="ho-comment-textarea"
@@ -259,7 +262,6 @@ export default function HOApprovalsPage() {
         const res = await api.get("/approvals/pending/head-office?size=100&page=0&sort=requestedAt,desc")
         const content = res?.data?.content ?? []
         const persisted = loadActioned()
-        // Merge any saved decisions back onto rows so they survive refresh
         const hydrated = content.map((t) =>
           persisted[t.id]
             ? { ...t, _localStatus: persisted[t.id].status, _localComment: persisted[t.id].comment, _decidedAt: persisted[t.id].decidedAt }
@@ -313,7 +315,7 @@ export default function HOApprovalsPage() {
 
   function markTransfer(id, status, comment) {
     const decidedAt = new Date().toISOString()
-    saveActioned(id, status, comment)   // persist to localStorage
+    saveActioned(id, status, comment)
     setTransfers((prev) =>
       prev.map((t) =>
         t.id === id ? { ...t, _localStatus: status, _localComment: comment, _decidedAt: decidedAt } : t
