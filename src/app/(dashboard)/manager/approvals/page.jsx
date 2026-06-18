@@ -1,5 +1,6 @@
 "use client"
 import { useState, useEffect, useCallback } from "react"
+import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { api } from "@/lib/api/client"
 import toast from "react-hot-toast"
@@ -13,6 +14,11 @@ const IconCheck = () => (
 const IconX = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+)
+const IconEye = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
   </svg>
 )
 const IconClose = () => (
@@ -332,8 +338,16 @@ export default function ManagerApprovalsPage() {
         .sb-table tbody tr:last-child { border-bottom: none; }
         .sb-table tbody tr:hover { background: #fafbf8; }
         .sb-table tbody tr.sb-highlighted { background: #f0f7ed; outline: 2px solid #3d7a2b; outline-offset: -2px; }
-        .sb-approvals-table { min-width: 900px; }
+        .sb-approvals-table { min-width: 960px; }
         .sb-dispatch-table  { min-width: 720px; }
+        .sb-btn-review {
+          display: inline-flex; align-items: center; gap: 4px;
+          background: #fff; color: #4b5563; border: 1px solid #dde0d4;
+          cursor: pointer; font-family: 'Inter', sans-serif; font-size: 12px;
+          font-weight: 500; padding: 4px 10px; border-radius: 4px;
+          white-space: nowrap; transition: background 0.1s; text-decoration: none;
+        }
+        .sb-btn-review:hover { background: #f7f8f4; color: #1a1f0e; }
         .sb-btn-approve {
           display: inline-flex; align-items: center; gap: 4px;
           background: #f0f7ed; color: #3d7a2b; border: 1px solid #e1eedb;
@@ -399,7 +413,7 @@ export default function ManagerApprovalsPage() {
                       <th style={{ width: 190 }}>Justification</th>
                       <th style={{ width: 150 }}>Requested By</th>
                       <th style={{ width: 85  }}>Date</th>
-                      <th style={{ width: 150 }}>Action</th>
+                      <th style={{ width: 210 }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -448,6 +462,7 @@ export default function ManagerApprovalsPage() {
                           </td>
                           <td style={{ whiteSpace: "nowrap" }}>
                             <div style={{ display: "flex", gap: 6 }}>
+                              <Link className="sb-btn-review" href={`/manager/approvals/${t.id}`}><IconEye /> Review</Link>
                               <button className="sb-btn-approve" onClick={() => openModal("approve", t)}><IconCheck /> Approve</button>
                               <button className="sb-btn-reject"  onClick={() => openModal("reject",  t)}><IconX />     Reject</button>
                             </div>

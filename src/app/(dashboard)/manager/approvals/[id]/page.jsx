@@ -120,6 +120,7 @@ export default function ManagerApprovalDetailPage({ params }) {
   const [notFound,    setNotFound]    = useState(false)
   const [alreadyDone, setAlreadyDone] = useState(false)
 
+  const [decision,    setDecision]    = useState(null) // "approve" | "reject" | null — what the manager has chosen
   const [comment,     setComment]     = useState("")
   const [submitting,  setSubmitting]  = useState(null) // "approve" | "reject" | null
 
@@ -190,6 +191,15 @@ export default function ManagerApprovalDetailPage({ params }) {
     } finally {
       setSubmitting(null)
     }
+  }
+
+  function handleConfirm() {
+    if (decision === "approve") handleApprove()
+    else if (decision === "reject") handleReject()
+  }
+
+  function handleChangeDecision() {
+    setDecision(null)
   }
 
   // ── Loading ─────────────────────────────────────────────────────────────────
@@ -269,76 +279,92 @@ export default function ManagerApprovalDetailPage({ params }) {
           <div style={{ background: "#fff", border: "1px solid #dde0d4", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
             <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: "#9ca3af", margin: 0 }}>Your Decision</p>
 
-            <div>
-              <label style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.12em", color: "#6b7260", display: "block", marginBottom: 6 }}>
-                Comments <span style={{ color: "#dc2626" }}>*</span> required if rejecting
-              </label>
-              <textarea
-                rows={4}
-                value={comment}
-                onChange={e => setComment(e.target.value)}
-                disabled={busy}
-                placeholder="Add a note for HO Admin (optional on approval, required on rejection)..."
-                style={{
-                  width: "100%", border: "1px solid #dde0d4", background: "#f7f8f4",
-                  padding: "10px 14px", fontSize: 13, fontFamily: "'Inter', sans-serif",
-                  color: "#1a1f0e", outline: "none", resize: "vertical",
-                  boxSizing: "border-box", opacity: busy ? 0.6 : 1,
-                }}
-              />
-            </div>
+            {decision === null ? (
+              /* ── Step 1: choose an action — no comment requirements shown yet ── */
+              <>
+                <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#6b7260", margin: 0 }}>
+                  Choose how you'd like to act on this transfer.
+                </p>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <button onClick={() => setDecision("approve")} style={chooseApproveStyle}>
+                    <IconCheck /> Approve & Forward to HO
+                  </button>
+                  <button onClick={() => setDecision("reject")} style={chooseRejectStyle}>
+                    <IconX /> Reject Transfer
+                  </button>
+                  <button onClick={() => router.push("/manager/approvals")} style={backBtnStyle}>
+                    <IconArrowLeft /> Back
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* ── Step 2: decision made — now show the relevant comment requirement ── */
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span style={decisionBadgeStyle(decision)}>
+                    {decision === "approve" ? <IconCheck /> : <IconX />}
+                    {decision === "approve" ? "You're approving this transfer" : "You're rejecting this transfer"}
+                  </span>
+                  <button onClick={handleChangeDecision} disabled={busy} style={changeLinkStyle}>
+                    Change decision
+                  </button>
+                </div>
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button
-                onClick={handleApprove}
-                disabled={busy}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                  background: submitting === "approve" ? "#9ca3af" : "#3d7a2b",
-                  color: "#fff", border: "none",
-                  cursor: busy ? "not-allowed" : "pointer",
-                  padding: "10px 22px", fontSize: 13,
-                  fontFamily: "'Inter', sans-serif", fontWeight: 500,
-                  transition: "background 0.13s",
-                }}
-                onMouseEnter={e => { if (!busy) e.currentTarget.style.background = "#2d5e20" }}
-                onMouseLeave={e => { if (!busy) e.currentTarget.style.background = "#3d7a2b" }}
-              >
-                <IconCheck />
-                {submitting === "approve" ? "Approving…" : "Approve & Forward to HO"}
-              </button>
+                <div>
+                  <label style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.12em", color: "#6b7260", display: "block", marginBottom: 6 }}>
+                    Comments {decision === "reject" && <span style={{ color: "#dc2626" }}>* required</span>}
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={comment}
+                    onChange={e => setComment(e.target.value)}
+                    disabled={busy}
+                    placeholder={decision === "reject"
+                      ? "Explain why this transfer is being rejected..."
+                      : "Add an optional note for HO Admin..."}
+                    style={{
+                      width: "100%", border: "1px solid #dde0d4", background: "#f7f8f4",
+                      padding: "10px 14px", fontSize: 13, fontFamily: "'Inter', sans-serif",
+                      color: "#1a1f0e", outline: "none", resize: "vertical",
+                      boxSizing: "border-box", opacity: busy ? 0.6 : 1,
+                    }}
+                  />
+                </div>
 
-              <button
-                onClick={handleReject}
-                disabled={busy}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                  background: submitting === "reject" ? "#9ca3af" : "#dc2626",
-                  color: "#fff", border: "none",
-                  cursor: busy ? "not-allowed" : "pointer",
-                  padding: "10px 22px", fontSize: 13,
-                  fontFamily: "'Inter', sans-serif", fontWeight: 500,
-                  transition: "background 0.13s",
-                }}
-                onMouseEnter={e => { if (!busy) e.currentTarget.style.background = "#b91c1c" }}
-                onMouseLeave={e => { if (!busy) e.currentTarget.style.background = "#dc2626" }}
-              >
-                <IconX />
-                {submitting === "reject" ? "Rejecting…" : "Reject Transfer"}
-              </button>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <button
+                    onClick={handleConfirm}
+                    disabled={busy}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      background: busy ? "#9ca3af" : (decision === "approve" ? "#3d7a2b" : "#dc2626"),
+                      color: "#fff", border: "none",
+                      cursor: busy ? "not-allowed" : "pointer",
+                      padding: "10px 22px", fontSize: 13,
+                      fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                      transition: "background 0.13s",
+                    }}
+                    onMouseEnter={e => { if (!busy) e.currentTarget.style.background = decision === "approve" ? "#2d5e20" : "#b91c1c" }}
+                    onMouseLeave={e => { if (!busy) e.currentTarget.style.background = decision === "approve" ? "#3d7a2b" : "#dc2626" }}
+                  >
+                    {decision === "approve" ? <IconCheck /> : <IconX />}
+                    {busy
+                      ? (decision === "approve" ? "Approving…" : "Rejecting…")
+                      : (decision === "approve" ? "Confirm Approval" : "Confirm Rejection")}
+                  </button>
 
-              <button
-                onClick={() => router.push("/manager/approvals")}
-                disabled={busy}
-                style={backBtnStyle}
-              >
-                <IconArrowLeft /> Back
-              </button>
-            </div>
+                  <button onClick={() => router.push("/manager/approvals")} disabled={busy} style={backBtnStyle}>
+                    <IconArrowLeft /> Back
+                  </button>
+                </div>
 
-            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9ca3af", margin: 0 }}>
-              Approving will forward this request to HO Admin for final sign-off. Rejecting will notify the requester immediately.
-            </p>
+                <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9ca3af", margin: 0 }}>
+                  {decision === "approve"
+                    ? "Approving will forward this request to HO Admin for final sign-off."
+                    : "Rejecting will notify the requester immediately."}
+                </p>
+              </>
+            )}
           </div>
         )}
 
@@ -352,6 +378,39 @@ export default function ManagerApprovalDetailPage({ params }) {
       </div>
     </div>
   )
+}
+
+function decisionBadgeStyle(decision) {
+  const isApprove = decision === "approve"
+  return {
+    display: "inline-flex", alignItems: "center", gap: 6,
+    fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 600,
+    padding: "5px 12px", borderRadius: 4,
+    background: isApprove ? "#f0fdf4" : "#fef2f2",
+    color: isApprove ? "#16a34a" : "#dc2626",
+    border: `1px solid ${isApprove ? "#bbf7d0" : "#fecaca"}`,
+  }
+}
+
+const changeLinkStyle = {
+  background: "none", border: "none", cursor: "pointer",
+  fontFamily: "'Inter', sans-serif", fontSize: 12,
+  color: "#6b7260", textDecoration: "underline",
+  padding: 0,
+}
+
+const chooseApproveStyle = {
+  display: "inline-flex", alignItems: "center", gap: 6,
+  background: "#3d7a2b", color: "#fff", border: "none",
+  cursor: "pointer", padding: "10px 22px", fontSize: 13,
+  fontFamily: "'Inter', sans-serif", fontWeight: 500,
+}
+
+const chooseRejectStyle = {
+  display: "inline-flex", alignItems: "center", gap: 6,
+  background: "#dc2626", color: "#fff", border: "none",
+  cursor: "pointer", padding: "10px 22px", fontSize: 13,
+  fontFamily: "'Inter', sans-serif", fontWeight: 500,
 }
 
 const backBtnStyle = {

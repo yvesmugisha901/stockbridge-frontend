@@ -46,6 +46,9 @@ function ConfigIcon() {
 function SettingsIcon() {
   return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
 }
+function BellIcon() {
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+}
 function CloseIcon() {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 }
@@ -98,7 +101,7 @@ const ROLE_LABEL = {
   [ROLES.ACCOUNTANT]: "Accountant",
 }
 
-export default function Sidebar({ isOpen = false, onClose }) {
+export default function Sidebar({ isOpen = false, onClose, unreadCount = 0 }) {
   const { user }  = useAuthContext()
   const pathname  = usePathname()
   const links     = NAV[user?.role] || []
@@ -181,7 +184,26 @@ export default function Sidebar({ isOpen = false, onClose }) {
     ))
   }
 
-  const settingsActive = pathname === "/settings"
+  const settingsActive     = pathname === "/settings"
+  const notificationsActive = pathname === "/notifications"
+
+  // Shared bottom-section link style (used by Notifications + Settings)
+  const bottomLinkStyle = (active) => ({
+    display: "flex", alignItems: "center", gap: 10,
+    padding: "8px 10px", textDecoration: "none", borderRadius: 6,
+    fontFamily: "'Inter', system-ui, sans-serif", fontSize: 13,
+    fontWeight: active ? 500 : 400,
+    color: active ? "#3d7a2b" : "#4b5563",
+    background: active ? "#f0f7ed" : "transparent",
+    borderLeft: `2px solid ${active ? "#3d7a2b" : "transparent"}`,
+    transition: "color 0.13s, background 0.13s",
+  })
+
+  const bottomLinkHover = (active, enter) => (e) => {
+    if (active) return
+    e.currentTarget.style.color      = enter ? "#1a1f0e"   : "#4b5563"
+    e.currentTarget.style.background = enter ? "#f7f8f4"   : "transparent"
+  }
 
   return (
     <aside className={`sidebar ${isOpen ? "sidebar-open" : ""}`} style={{
@@ -243,33 +265,46 @@ export default function Sidebar({ isOpen = false, onClose }) {
           </>
         )}
 
-        {/* Settings */}
+        {/* Notifications + Settings */}
         <div style={{ marginTop: 8, borderTop: "1px solid #e8ebe3", paddingTop: 8 }}>
+          <Link
+            href="/notifications"
+            onClick={onClose}
+            style={bottomLinkStyle(notificationsActive)}
+            onMouseEnter={bottomLinkHover(notificationsActive, true)}
+            onMouseLeave={bottomLinkHover(notificationsActive, false)}
+          >
+            <span style={{ flexShrink: 0, color: notificationsActive ? "#3d7a2b" : "#9ca3af", position: "relative" }}>
+              <BellIcon />
+              {unreadCount > 0 && (
+                <span style={{
+                  position: "absolute", top: -3, right: -3,
+                  width: 7, height: 7, background: "#e24b4a",
+                  borderRadius: "50%", border: "1.5px solid #fff",
+                }} />
+              )}
+            </span>
+            Notifications
+            {unreadCount > 0 && (
+              <span style={{
+                marginLeft: "auto",
+                fontSize: 9, fontWeight: 600,
+                background: notificationsActive ? "#3d7a2b" : "#e4f0df",
+                color: notificationsActive ? "#fff" : "#3d7a2b",
+                padding: "1px 6px", borderRadius: 8,
+                fontFamily: "'DM Mono', monospace",
+              }}>
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+          </Link>
+
           <Link
             href="/settings"
             onClick={onClose}
-            style={{
-              display: "flex", alignItems: "center", gap: 10,
-              padding: "8px 10px", textDecoration: "none", borderRadius: 6,
-              fontFamily: "'Inter', system-ui, sans-serif", fontSize: 13,
-              fontWeight: settingsActive ? 500 : 400,
-              color: settingsActive ? "#3d7a2b" : "#4b5563",
-              background: settingsActive ? "#f0f7ed" : "transparent",
-              borderLeft: `2px solid ${settingsActive ? "#3d7a2b" : "transparent"}`,
-              transition: "color 0.13s, background 0.13s",
-            }}
-            onMouseEnter={(e) => {
-              if (!settingsActive) {
-                e.currentTarget.style.color = "#1a1f0e"
-                e.currentTarget.style.background = "#f7f8f4"
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!settingsActive) {
-                e.currentTarget.style.color = "#4b5563"
-                e.currentTarget.style.background = "transparent"
-              }
-            }}
+            style={bottomLinkStyle(settingsActive)}
+            onMouseEnter={bottomLinkHover(settingsActive, true)}
+            onMouseLeave={bottomLinkHover(settingsActive, false)}
           >
             <span style={{ flexShrink: 0, color: settingsActive ? "#3d7a2b" : "#9ca3af" }}>
               <SettingsIcon />
