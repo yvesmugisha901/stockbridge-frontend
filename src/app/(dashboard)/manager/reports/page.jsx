@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { api } from "@/lib/api/client"
 import toast from "react-hot-toast"
 import PageHeader from "@/components/ui/PageHeader"
@@ -20,6 +20,16 @@ const IconFilter = () => (
 const IconSearch = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+  </svg>
+)
+const IconChevronLeft = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="15 18 9 12 15 6"/>
+  </svg>
+)
+const IconChevronRight = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="9 18 15 12 9 6"/>
   </svg>
 )
 
@@ -45,6 +55,27 @@ const ALL_STATUSES = [
   "IN_TRANSIT", "COMPLETED", "REJECTED", "CANCELLED",
 ]
 
+const PAGE_SIZE_OPTIONS = [25, 50, 100]
+
+// ─── Pagination helper ─────────────────────────────────────────────────────────
+// Builds a compact page list like: 1 2 3 4 5 ... 124  or  1 ... 60 61 62 ... 124
+function buildPageList(current, total) {
+  const pages = []
+  const add = (p) => pages.push(p)
+  const siblings = 1 // pages shown on each side of current
+
+  const left  = Math.max(2, current - siblings)
+  const right = Math.min(total - 1, current + siblings)
+
+  add(1)
+  if (left > 2) add("ellipsis-left")
+  for (let p = left; p <= right; p++) add(p)
+  if (right < total - 1) add("ellipsis-right")
+  if (total > 1) add(total)
+
+  return pages
+}
+
 export default function ManagerReportsPage() {
   const [transfers, setTransfers] = useState([])
   const [items, setItems]         = useState([])
@@ -57,6 +88,10 @@ export default function ManagerReportsPage() {
   const [dateFrom, setDateFrom]   = useState("")
   const [dateTo, setDateTo]       = useState("")
   const [search, setSearch]       = useState("")
+
+  // ─── Pagination (client-side, applied after filtering/search) ─────────────
+  const [page, setPage]         = useState(1)
+  const [pageSize, setPageSize] = useState(25)
 
   // Load item list for filter dropdown — FR-29
   // GET /api/v1/items → Page<ItemResponse> → .data.content ✓ (confirmed from ItemController)
@@ -71,6 +106,7 @@ export default function ManagerReportsPage() {
     try {
       setLoading(true)
       setHasRun(true)
+      setPage(1)
 
       // GET /api/v1/transfers → Page<TransferResponse> → .data.content
       const params = new URLSearchParams({ size: "200", page: "0" })
@@ -100,6 +136,7 @@ export default function ManagerReportsPage() {
     setSearch("")
     setTransfers([])
     setHasRun(false)
+    setPage(1)
   }
 
   // ─── Client-side keyword search on results — FR-29 ────────────────────────
@@ -114,7 +151,34 @@ export default function ManagerReportsPage() {
     )
   })
 
-  // ─── CSV Export — FR-28 ───────────────────────────────────────────────────
+  // ─── Pagination derived state ──────────────────────────────────────────────
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+
+  // Clamp page if filters/search/pageSize shrink the result set below current page
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [totalPages]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const safePage = Math.min(page, totalPages)
+  const startIdx = (safePage - 1) * pageSize
+  const endIdx   = Math.min(startIdx + pageSize, filtered.length)
+  const paginated = filtered.slice(startIdx, endIdx)
+
+  const pageList = useMemo(() => buildPageList(safePage, totalPages), [safePage, totalPages])
+
+  function goToPage(p) {
+    const clamped = Math.max(1, Math.min(p, totalPages))
+    setPage(clamped)
+  }
+
+  function handlePageSizeChange(newSize) {
+    // Keep the user roughly anchored on the same record when page size changes
+    const firstVisibleIdx = (safePage - 1) * pageSize
+    setPageSize(newSize)
+    setPage(Math.floor(firstVisibleIdx / newSize) + 1)
+  }
+
+  // ─── CSV Export — FR-28 (exports the full filtered set, not just current page) ──
   function exportCSV() {
     if (filtered.length === 0) { toast.error("Nothing to export"); return }
     const headers = [
@@ -143,7 +207,7 @@ export default function ManagerReportsPage() {
     toast.success("CSV exported")
   }
 
-  // ─── Totals summary ───────────────────────────────────────────────────────
+  // ─── Totals summary (computed over the full filtered set, not just the page) ──
   const totalQty   = filtered.reduce((sum, t) => sum + (t.quantity ?? 0), 0)
   const totalValue = filtered.reduce((sum, t) => sum + (Number(t.totalValue) || 0), 0)
 
@@ -307,7 +371,7 @@ export default function ManagerReportsPage() {
                   type="text"
                   placeholder="Search results..."
                   value={search}
-                  onChange={e => setSearch(e.target.value)}
+                  onChange={e => { setSearch(e.target.value); setPage(1) }}
                   style={{
                     background: "transparent", border: "none", outline: "none",
                     fontSize: 13, fontFamily: "'Inter', sans-serif",
@@ -327,61 +391,75 @@ export default function ManagerReportsPage() {
                 {search ? "No results match your search." : "No transfers found for the selected filters."}
               </div>
             ) : (
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: "#f7f8f4", borderBottom: "1px solid #e8ebe3" }}>
-                    {["Request ID", "Item", "From", "To", "Qty", "Value", "Status", "Requested By", "Date"].map(h => (
-                      <th key={h} style={{
-                        textAlign: "left", padding: "10px 20px",
-                        fontFamily: "'DM Mono', monospace", fontSize: 10,
-                        textTransform: "uppercase", letterSpacing: "0.1em",
-                        color: "#9ca3af", fontWeight: 500,
-                      }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((t, idx) => (
-                    <tr key={t.id} style={{ borderBottom: idx < filtered.length - 1 ? "1px solid #f0f1ec" : "none" }}>
-                      <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>
-                        {t.referenceNumber ?? `#${t.id}`}
-                      </td>
-                      <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>
-                        {t.itemName}
-                      </td>
-                      <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>
-                        {t.sourceBranchName}
-                      </td>
-                      <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>
-                        {t.destinationBranchName}
-                      </td>
-                      <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>
-                        {t.quantity}
-                      </td>
-                      <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#6b7260" }}>
-                        {t.totalValue != null
-                          ? new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(t.totalValue)
-                          : "—"}
-                      </td>
-                      <td style={{ padding: "12px 20px" }}>
-                        <span style={{
-                          ...(STATUS_STYLE[t.status] ?? { background: "#f3f4f6", color: "#6b7280" }),
+              <>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: "#f7f8f4", borderBottom: "1px solid #e8ebe3" }}>
+                      {["Request ID", "Item", "From", "To", "Qty", "Value", "Status", "Requested By", "Date"].map(h => (
+                        <th key={h} style={{
+                          textAlign: "left", padding: "10px 20px",
                           fontFamily: "'DM Mono', monospace", fontSize: 10,
-                          fontWeight: 600, padding: "2px 8px", borderRadius: 999,
-                        }}>
-                          {STATUS_LABEL[t.status] ?? t.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>
-                        {t.requestedByEmail ?? "—"}
-                      </td>
-                      <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af" }}>
-                        {t.requestedAt ? new Date(t.requestedAt).toLocaleDateString() : "—"}
-                      </td>
+                          textTransform: "uppercase", letterSpacing: "0.1em",
+                          color: "#9ca3af", fontWeight: 500,
+                        }}>{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {paginated.map((t, idx) => (
+                      <tr key={t.id} style={{ borderBottom: idx < paginated.length - 1 ? "1px solid #f0f1ec" : "none" }}>
+                        <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260" }}>
+                          {t.referenceNumber ?? `#${t.id}`}
+                        </td>
+                        <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>
+                          {t.itemName}
+                        </td>
+                        <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>
+                          {t.sourceBranchName}
+                        </td>
+                        <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>
+                          {t.destinationBranchName}
+                        </td>
+                        <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "#1a1f0e" }}>
+                          {t.quantity}
+                        </td>
+                        <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#6b7260" }}>
+                          {t.totalValue != null
+                            ? new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(t.totalValue)
+                            : "—"}
+                        </td>
+                        <td style={{ padding: "12px 20px" }}>
+                          <span style={{
+                            ...(STATUS_STYLE[t.status] ?? { background: "#f3f4f6", color: "#6b7280" }),
+                            fontFamily: "'DM Mono', monospace", fontSize: 10,
+                            fontWeight: 600, padding: "2px 8px", borderRadius: 999,
+                          }}>
+                            {STATUS_LABEL[t.status] ?? t.status}
+                          </span>
+                        </td>
+                        <td style={{ padding: "12px 20px", fontFamily: "'Inter', sans-serif", color: "#6b7260" }}>
+                          {t.requestedByEmail ?? "—"}
+                        </td>
+                        <td style={{ padding: "12px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#9ca3af" }}>
+                          {t.requestedAt ? new Date(t.requestedAt).toLocaleDateString() : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <PaginationBar
+                  page={safePage}
+                  totalPages={totalPages}
+                  pageList={pageList}
+                  pageSize={pageSize}
+                  startIdx={startIdx}
+                  endIdx={endIdx}
+                  totalRecords={filtered.length}
+                  onGoToPage={goToPage}
+                  onPageSizeChange={handlePageSizeChange}
+                />
+              </>
             )}
           </div>
         </>
@@ -398,6 +476,114 @@ export default function ManagerReportsPage() {
         </div>
       )}
 
+    </div>
+  )
+}
+
+// ─── Pagination Bar ─────────────────────────────────────────────────────────────
+function PaginationBar({ page, totalPages, pageList, pageSize, startIdx, endIdx, totalRecords, onGoToPage, onPageSizeChange }) {
+  const baseBtn = {
+    fontFamily: "'DM Mono', monospace",
+    fontSize: 12,
+    minWidth: 28,
+    height: 28,
+    padding: "0 6px",
+    border: "1px solid #dde0d4",
+    background: "#fff",
+    color: "#6b7260",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+  }
+  const activeBtn = { ...baseBtn, background: "#3d7a2b", border: "1px solid #3d7a2b", color: "#fff", fontWeight: 600 }
+  const disabledBtn = { ...baseBtn, color: "#d1d5cf", cursor: "not-allowed" }
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 16,
+        padding: "14px 20px",
+        borderTop: "1px solid #e8ebe3",
+        background: "#fbfcf9",
+      }}
+    >
+      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#9ca3af" }}>
+        Showing <strong style={{ color: "#1a1f0e" }}>{totalRecords === 0 ? 0 : startIdx + 1}–{endIdx}</strong> of{" "}
+        <strong style={{ color: "#1a1f0e" }}>{totalRecords}</strong>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+        {/* Page size selector */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9ca3af" }}>
+            Per page
+          </span>
+          <select
+            value={pageSize}
+            onChange={(e) => onPageSizeChange(Number(e.target.value))}
+            style={{
+              border: "1px solid #dde0d4",
+              background: "#fff",
+              padding: "5px 8px",
+              fontSize: 12,
+              fontFamily: "'Inter', sans-serif",
+              color: "#1a1f0e",
+              outline: "none",
+            }}
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Page controls */}
+        {totalPages > 1 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <button
+              onClick={() => onGoToPage(page - 1)}
+              disabled={page === 1}
+              style={page === 1 ? disabledBtn : baseBtn}
+              aria-label="Previous page"
+            >
+              <IconChevronLeft />
+            </button>
+
+            {pageList.map((p, idx) =>
+              typeof p === "number" ? (
+                <button
+                  key={p}
+                  onClick={() => onGoToPage(p)}
+                  style={p === page ? activeBtn : baseBtn}
+                >
+                  {p}
+                </button>
+              ) : (
+                <span
+                  key={`${p}-${idx}`}
+                  style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#9ca3af", padding: "0 4px" }}
+                >
+                  …
+                </span>
+              )
+            )}
+
+            <button
+              onClick={() => onGoToPage(page + 1)}
+              disabled={page === totalPages}
+              style={page === totalPages ? disabledBtn : baseBtn}
+              aria-label="Next page"
+            >
+              <IconChevronRight />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

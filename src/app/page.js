@@ -806,7 +806,7 @@ export default function Home() {
             </svg>
           </Link>
           <Link href="/register" className="nav-register">
-            <span className="nav-label">Request Access</span>
+            <span className="nav-label">Sign Up</span>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>
             </svg>
@@ -819,11 +819,6 @@ export default function Home() {
         <div className="hero-grid" />
         <div className="hero-glow" />
         <div className="hero-glow2" />
-
-        <p className={`hero-eyebrow${visible ? " visible" : ""}`}>
-          <span className="eyebrow-line" />
-          Multi-Branch Inventory &amp; Transfer Management
-        </p>
         <h1 className={`hero-title${visible ? " visible" : ""}`}>
           Stock moves.<br />
           <em>Nothing slips</em><br />
