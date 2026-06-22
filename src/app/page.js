@@ -182,7 +182,7 @@ export default function Home() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap');
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -199,6 +199,7 @@ export default function Home() {
           --accent2: #1d6fa4;
           --serif: 'DM Serif Display', Georgia, serif;
           --mono: 'DM Mono', 'Courier New', monospace;
+          --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
 
         html { scroll-behavior: smooth; }
@@ -206,10 +207,12 @@ export default function Home() {
         body {
           background: var(--bg);
           color: var(--text);
-          font-family: var(--mono);
-          font-size: 14px;
-          line-height: 1.6;
+          font-family: var(--sans);
+          font-size: 15px;
+          line-height: 1.65;
           overflow-x: hidden;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
         }
 
         /* NAV */
@@ -251,11 +254,33 @@ export default function Home() {
           font-weight: 500;
           clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
         }
-        .nav-cta {
+
+        /* NAV ACTIONS — sign in + register side by side */
+        .nav-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .nav-register {
           display: inline-flex;
           align-items: center;
-          gap: 8px;
-          padding: 9px 22px;
+          gap: 7px;
+          padding: 9px 20px;
+          background: var(--accent);
+          color: #fff;
+          font-family: var(--mono);
+          font-size: 12px;
+          text-decoration: none;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          transition: background 0.2s;
+        }
+        .nav-register:hover { background: var(--accent-dark); }
+        .nav-signin {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          padding: 9px 20px;
           border: 1px solid var(--accent);
           color: var(--accent);
           font-family: var(--mono);
@@ -265,10 +290,7 @@ export default function Home() {
           text-transform: uppercase;
           transition: background 0.2s, color 0.2s;
         }
-        .nav-cta:hover {
-          background: var(--accent);
-          color: #fff;
-        }
+        .nav-signin:hover { background: var(--accent); color: #fff; }
 
         /* HERO */
         .hero {
@@ -304,6 +326,7 @@ export default function Home() {
           pointer-events: none;
         }
         .hero-eyebrow {
+          font-family: var(--mono);
           font-size: 11px;
           letter-spacing: 0.2em;
           text-transform: uppercase;
@@ -326,8 +349,8 @@ export default function Home() {
 
         .hero-title {
           font-family: var(--serif);
-          font-size: clamp(52px, 8vw, 110px);
-          line-height: 0.95;
+          font-size: clamp(48px, 8vw, 108px);
+          line-height: 0.98;
           letter-spacing: -2px;
           color: var(--text);
           max-width: 900px;
@@ -345,7 +368,7 @@ export default function Home() {
           margin-top: 32px;
           max-width: 480px;
           color: var(--muted);
-          font-size: 14px;
+          font-size: 15px;
           line-height: 1.8;
           opacity: 0;
           transform: translateY(16px);
@@ -357,7 +380,7 @@ export default function Home() {
           margin-top: 48px;
           display: flex;
           align-items: center;
-          gap: 24px;
+          gap: 16px;
           flex-wrap: wrap;
           opacity: 0;
           transform: translateY(16px);
@@ -385,7 +408,31 @@ export default function Home() {
           background: var(--accent-dark);
           box-shadow: 0 8px 30px rgba(61,122,43,0.22);
         }
+
+        /* Outlined secondary CTA — for "Request Access" in hero */
+        .btn-outline {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          padding: 15px 32px;
+          border: 1px solid var(--accent);
+          color: var(--accent);
+          font-family: var(--mono);
+          font-size: 13px;
+          font-weight: 500;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          text-decoration: none;
+          transition: background 0.2s, color 0.2s, transform 0.2s;
+        }
+        .btn-outline:hover {
+          background: var(--accent);
+          color: #fff;
+          transform: translateY(-2px);
+        }
+
         .btn-secondary {
+          font-family: var(--mono);
           font-size: 13px;
           color: var(--muted);
           text-decoration: none;
@@ -396,6 +443,14 @@ export default function Home() {
           transition: color 0.2s;
         }
         .btn-secondary:hover { color: var(--text); }
+
+        /* divider between hero CTAs and explore link */
+        .hero-action-sep {
+          width: 1px;
+          height: 20px;
+          background: var(--border);
+          flex-shrink: 0;
+        }
 
         .hero-stat-row {
           margin-top: 80px;
@@ -416,6 +471,7 @@ export default function Home() {
           letter-spacing: -1px;
         }
         .stat-label {
+          font-family: var(--mono);
           font-size: 11px;
           color: var(--muted);
           letter-spacing: 0.12em;
@@ -432,6 +488,7 @@ export default function Home() {
         /* FEATURES */
         .section { padding: 100px 48px; }
         .section-label {
+          font-family: var(--mono);
           font-size: 11px;
           letter-spacing: 0.2em;
           text-transform: uppercase;
@@ -444,9 +501,9 @@ export default function Home() {
         .section-label svg { color: var(--accent); }
         .section-title {
           font-family: var(--serif);
-          font-size: clamp(36px, 5vw, 60px);
+          font-size: clamp(34px, 5vw, 58px);
           letter-spacing: -1px;
-          line-height: 1.05;
+          line-height: 1.1;
           max-width: 600px;
           margin-bottom: 64px;
           color: var(--text);
@@ -454,7 +511,7 @@ export default function Home() {
 
         .features-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
           gap: 1px;
           background: var(--border);
           border: 1px solid var(--border);
@@ -483,19 +540,19 @@ export default function Home() {
           color: var(--accent);
         }
         .feature-num {
+          font-family: var(--mono);
           font-size: 11px;
           color: var(--border-hover);
           letter-spacing: 0.12em;
-          font-family: var(--mono);
         }
         .feature-label {
           font-family: var(--serif);
-          font-size: 22px;
+          font-size: 21px;
           color: var(--text);
           letter-spacing: -0.3px;
         }
         .feature-detail {
-          font-size: 13px;
+          font-size: 13.5px;
           color: var(--muted);
           line-height: 1.7;
         }
@@ -549,6 +606,7 @@ export default function Home() {
           color: #fff;
         }
         .step-status {
+          font-family: var(--mono);
           font-size: 10px;
           letter-spacing: 0.15em;
           text-transform: uppercase;
@@ -556,7 +614,7 @@ export default function Home() {
           font-weight: 500;
         }
         .step-desc {
-          font-size: 12px;
+          font-size: 12.5px;
           color: var(--muted);
           line-height: 1.5;
         }
@@ -612,7 +670,7 @@ export default function Home() {
           color: var(--text);
         }
         .role-desc {
-          font-size: 12px;
+          font-size: 13px;
           color: var(--muted);
           line-height: 1.7;
         }
@@ -648,13 +706,29 @@ export default function Home() {
         }
         .cta-title {
           font-family: var(--serif);
-          font-size: clamp(28px, 4vw, 48px);
+          font-size: clamp(28px, 4vw, 46px);
           letter-spacing: -1px;
           max-width: 500px;
-          line-height: 1.1;
+          line-height: 1.15;
           color: var(--text);
         }
         .cta-title em { font-style: italic; color: var(--accent); }
+        .cta-buttons {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          align-items: flex-start;
+          flex-shrink: 0;
+        }
+        .cta-hint {
+          font-family: var(--mono);
+          font-size: 11px;
+          color: var(--muted);
+          letter-spacing: 0.08em;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
 
         /* FOOTER */
         .footer {
@@ -689,19 +763,10 @@ export default function Home() {
           clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
         }
         .footer-copy {
+          font-family: var(--mono);
           font-size: 12px;
           color: var(--muted);
         }
-        .footer-tag {
-          font-size: 11px;
-          color: var(--muted);
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-        .footer-tag svg { color: var(--accent); }
 
         @media (max-width: 768px) {
           .nav { padding: 16px 24px; }
@@ -709,25 +774,44 @@ export default function Home() {
           .section { padding: 60px 24px; }
           .workflow-section { padding: 60px 24px; }
           .roles-section { padding: 60px 24px; }
-          .cta-banner { margin: 0 24px 60px; padding: 48px 32px; }
-          .footer { padding: 24px; }
+          .cta-banner { margin: 0 24px 60px; padding: 48px 32px; flex-direction: column; align-items: flex-start; gap: 28px; }
+          .cta-buttons { flex-direction: row; flex-wrap: wrap; }
+          .footer { padding: 24px; flex-direction: column; align-items: flex-start; gap: 12px; }
           .divider { margin: 0 24px; }
           .hero-stat-row { gap: 32px; }
+          .section-title { margin-bottom: 40px; }
+          .nav-actions { gap: 8px; }
+        }
+
+        @media (max-width: 560px) {
+          .nav-register span.nav-label, .nav-signin span.nav-label { display: none; }
+          .hero-actions { flex-direction: column; align-items: flex-start; gap: 12px; }
+          .hero-action-sep { display: none; }
+          .btn-primary, .btn-outline { width: 100%; justify-content: center; }
+          .hero-stat-row { gap: 24px 40px; }
         }
       `}</style>
 
-      {/* NAV */}
+      {/* NAV — Sign In (outline) + Request Access (filled) */}
       <nav className={`nav${scrolled ? " scrolled" : ""}`}>
         <a href="#" className="nav-logo">
           <span className="nav-logo-mark">SB</span>
           StockBridge
         </a>
-        <Link href="/login" className="nav-cta">
-          Sign In
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-          </svg>
-        </Link>
+        <div className="nav-actions">
+          <Link href="/login" className="nav-signin">
+            <span className="nav-label">Sign In</span>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+            </svg>
+          </Link>
+          <Link href="/register" className="nav-register">
+            <span className="nav-label">Sign Up</span>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>
+            </svg>
+          </Link>
+        </div>
       </nav>
 
       {/* HERO */}
@@ -735,10 +819,6 @@ export default function Home() {
         <div className="hero-grid" />
         <div className="hero-glow" />
         <div className="hero-glow2" />
-
-        <p className={`hero-eyebrow${visible ? " visible" : ""}`}>
-          Multi-Branch Inventory &amp; Transfer Management
-        </p>
         <h1 className={`hero-title${visible ? " visible" : ""}`}>
           Stock moves.<br />
           <em>Nothing slips</em><br />
@@ -749,13 +829,22 @@ export default function Home() {
           source of truth — from transfer request to final receipt, with full
           audit trail and finance visibility.
         </p>
+
+        {/* Hero actions: Sign In (primary) | Request Access (outline) | separator | Explore */}
         <div className={`hero-actions${visible ? " visible" : ""}`}>
           <Link href="/login" className="btn-primary">
-            Access Dashboard
+            Sign In
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
             </svg>
           </Link>
+          <Link href="/register" className="btn-outline">
+            Request Access
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>
+            </svg>
+          </Link>
+          <span className="hero-action-sep" />
           <a href="#features" className="btn-secondary">
             Explore features
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -763,6 +852,7 @@ export default function Home() {
             </svg>
           </a>
         </div>
+
         <div className={`hero-stat-row${visible ? " visible" : ""}`}>
           <div className="stat">
             <span className="stat-num">5</span>
@@ -867,10 +957,7 @@ export default function Home() {
                 e.currentTarget.style.boxShadow = "";
               }}
             >
-              <div
-                className="role-icon-wrap"
-                style={{ background: `${r.color}15`, color: r.color }}
-              >
+              <div className="role-icon-wrap" style={{ background: `${r.color}15`, color: r.color }}>
                 {r.icon}
               </div>
               <span className="role-title">{r.title}</span>
@@ -880,19 +967,33 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CTA BANNER */}
+      {/* CTA BANNER — two buttons: Sign In (primary) + Request Access (outline) */}
       <div className="cta-banner">
         <h2 className="cta-title">
           Ready to bring<br />
           <em>every branch</em><br />
           into sync?
         </h2>
-        <Link href="/login" className="btn-primary">
-          Sign In to StockBridge
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-          </svg>
-        </Link>
+        <div className="cta-buttons">
+          <Link href="/login" className="btn-primary">
+            Sign In to StockBridge
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+            </svg>
+          </Link>
+          <Link href="/register" className="btn-outline">
+            Request access
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>
+            </svg>
+          </Link>
+          <span className="cta-hint">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            New accounts require administrator approval
+          </span>
+        </div>
       </div>
 
       {/* FOOTER */}

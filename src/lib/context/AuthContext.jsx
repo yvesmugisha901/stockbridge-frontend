@@ -1,11 +1,10 @@
 "use client"
-import { createContext, useContext, useState, useEffect } from "react"
-import { getUser, isAuthenticated, removeToken } from "@/lib/auth/session"
+import { createContext, useContext, useState } from "react"
+import { getUser, saveToken, removeToken } from "@/lib/auth/tokens"
+import { logout as doLogout } from "@/lib/auth/logout"
 
 const AuthContext = createContext(null)
 
-// JWT stores role as "ROLE_ADMIN" but the app uses "ADMIN" everywhere.
-// This strips the prefix so user.role always matches ROLES.* constants.
 function normalizeUser(raw) {
   if (!raw) return null
   return {
@@ -15,29 +14,20 @@ function normalizeUser(raw) {
 }
 
 export function AuthProvider({ children }) {
-  const [user, setUserRaw] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [user, setUserRaw] = useState(() => normalizeUser(getUser()))
 
-  // Wrap setUser so anything stored via setUser is also normalized
   function setUser(raw) {
     setUserRaw(normalizeUser(raw))
   }
 
-  useEffect(() => {
-    if (isAuthenticated()) {
-      setUser(getUser())   // getUser() decodes JWT → may have "ROLE_ADMIN", gets normalized here
-    }
-    setLoading(false)
-  }, [])
-
-  function logout() {
-    removeToken()
-    setUserRaw(null)
-    window.location.href = "/login"
+  async function logout() {
+    setUserRaw(null)   // clear UI immediately
+    removeToken()      // clear in-memory access token
+    await doLogout()   // calls Spring /auth/logout to revoke + clear cookie, then redirects
   }
 
   return (
-    <AuthContext.Provider value={{ user, setUser, loading, logout }}>
+    <AuthContext.Provider value={{ user, setUser, logout }}>
       {children}
     </AuthContext.Provider>
   )

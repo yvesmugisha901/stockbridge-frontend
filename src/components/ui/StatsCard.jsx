@@ -1,14 +1,12 @@
-/**
- * StatsCard — reusable metric card
- * Props: label, value, icon (SVG element), trend (string), color (green|blue|yellow|red|gray)
- */
-export default function StatsCard({ label, value, icon, trend, trendUp, color = "green" }) {
+export default function StatsCard({ label, subLabel, value, icon, trend, trendUp, color = "green" }) {
   const palette = {
-    green:  { bg: "#f0f7ed", accent: "#3d7a2b", light: "#e6f2e1" },
-    blue:   { bg: "#eff6ff", accent: "#2563eb", light: "#dbeafe" },
-    yellow: { bg: "#fefce8", accent: "#ca8a04", light: "#fef9c3" },
-    red:    { bg: "#fef2f2", accent: "#dc2626", light: "#fee2e2" },
-    gray:   { bg: "#f7f8f4", accent: "#6b7260", light: "#e5e7eb" },
+    green:  { bg: "#EAF3DE", accent: "#639922", light: "#C0DD97" },
+    blue:   { bg: "#E6F1FB", accent: "#185FA5", light: "#B5D4F4" },
+    yellow: { bg: "#FAEEDA", accent: "#BA7517", light: "#FAC775" },
+    red:    { bg: "#FCEBEB", accent: "#A32D2D", light: "#F7C1C1" },
+    teal:   { bg: "#E1F5EE", accent: "#0F6E56", light: "#9FE1CB" },
+    purple: { bg: "#EEEDFE", accent: "#534AB7", light: "#CECBF6" },
+    gray:   { bg: "#F1EFE8", accent: "#5F5E5A", light: "#D3D1C7" },
   }
   const c = palette[color] ?? palette.green
 
@@ -16,56 +14,57 @@ export default function StatsCard({ label, value, icon, trend, trendUp, color = 
     <div
       style={{
         background: "#fff",
-        border: "1px solid #dde0d4",
-        padding: "24px",
+        border: "0.5px solid #dde0d4",
+        borderRadius: 8,
+        padding: "12px 14px 10px",
         display: "flex",
         flexDirection: "column",
-        gap: 14,
-        transition: "box-shadow 0.2s",
+        gap: 5,
         position: "relative",
         overflow: "hidden",
       }}
-      onMouseEnter={(e) => e.currentTarget.style.boxShadow = "0 4px 24px rgba(61,122,43,0.08)"}
-      onMouseLeave={(e) => e.currentTarget.style.boxShadow = "none"}
+      onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#b5b9ab")}
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#dde0d4")}
     >
-      {/* top accent line */}
-      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: c.accent }} />
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: c.accent }} />
 
-      {/* label + icon row */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-        <span style={{
-          fontFamily: "'DM Mono', monospace",
-          fontSize: 10,
-          textTransform: "uppercase",
-          letterSpacing: "0.15em",
-          color: "#6b7260",
-          lineHeight: 1.4,
-          maxWidth: "70%",
-        }}>
-          {label}
-        </span>
-
-        {/* SVG icon container — no emojis */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6 }}>
+        <div>
+          <div style={{
+            fontSize: 11,
+            fontWeight: 500,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            color: "#6b7260",
+            lineHeight: 1.3,
+          }}>
+            {label}
+          </div>
+          {subLabel && (
+            <div style={{ fontSize: 10, color: "#9a9e8f", lineHeight: 1.3, marginTop: 1 }}>
+              {subLabel}
+            </div>
+          )}
+        </div>
         <span style={{
           background: c.bg,
           color: c.accent,
-          width: 36,
-          height: 36,
+          width: 28,
+          height: 28,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           flexShrink: 0,
-          border: `1px solid ${c.light}`,
+          borderRadius: 6,
+          border: `0.5px solid ${c.light}`,
         }}>
           {icon}
         </span>
       </div>
 
-      {/* big value — Inter */}
       <p style={{
-        fontFamily: "'Inter', sans-serif",
-        fontSize: 36,
-        fontWeight: 600,
+        fontSize: 26,
+        fontWeight: 500,
         color: "#1a1f0e",
         margin: 0,
         lineHeight: 1,
@@ -74,17 +73,14 @@ export default function StatsCard({ label, value, icon, trend, trendUp, color = 
         {value ?? "—"}
       </p>
 
-      {/* trend line — Inter */}
       {trend && (
         <p style={{
-          fontFamily: "'Inter', sans-serif",
-          fontSize: 12,
-          fontWeight: 400,
+          fontSize: 11,
           color: trendUp === false ? "#dc2626" : c.accent,
           margin: 0,
           display: "flex",
           alignItems: "center",
-          gap: 4,
+          gap: 3,
         }}>
           {trendUp === true ? "↑" : trendUp === false ? "↓" : "·"} {trend}
         </p>

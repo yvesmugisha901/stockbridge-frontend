@@ -1,62 +1,337 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { useAuthContext } from "@/lib/context/AuthContext"
+import { api } from "@/lib/api/client"
 import toast from "react-hot-toast"
+import PageHeader from "@/components/ui/PageHeader"
 
 export default function NewTransferPage() {
   const router = useRouter()
+  const { user } = useAuthContext()
+
+  const [branches, setBranches]         = useState([])
+  const [items, setItems]               = useState([])
+  const [stockInfo, setStockInfo]       = useState(null)
+  const [stockLoading, setStockLoading] = useState(false)
+  const [loadingDeps, setLoadingDeps]   = useState(true)
+  const [submitting, setSubmitting]     = useState(false)
+
   const [form, setForm] = useState({
-    sourceBranchId: "", destinationBranchId: "",
-    itemId: "", quantity: "", justification: "",
+    sourceBranchId:      "",
+    destinationBranchId: "",
+    itemId:              "",
+    quantity:            "",
+    justification:       "",
   })
+
+  useEffect(() => {
+    async function load() {
+      try {
+        setLoadingDeps(true)
+        const [bRes, iRes] = await Promise.all([
+          api.get("/branches"),
+          api.get("/items?size=200"),
+        ])
+        if (bRes?.success) {
+          const list = Array.isArray(bRes.data) ? bRes.data : (bRes.data?.content ?? [])
+          setBranches(list.filter(b => b.active))
+        }
+        if (iRes?.success) {
+          const list = Array.isArray(iRes.data) ? iRes.data : (iRes.data?.content ?? [])
+          setItems(list.filter(i => i.active))
+        }
+      } catch {
+        toast.error("Failed to load form data")
+      } finally {
+        setLoadingDeps(false)
+      }
+    }
+    load()
+  }, [])
+
+  useEffect(() => {
+    if (user?.branchId) {
+      setForm(f => ({ ...f, destinationBranchId: String(user.branchId) }))
+    }
+  }, [user])
+
+  useEffect(() => {
+    async function checkStock() {
+      if (!form.itemId || !form.sourceBranchId) {
+        setStockInfo(null)
+        return
+      }
+      try {
+        setStockLoading(true)
+        const res = await api.get(
+          `/stock/${form.sourceBranchId}/${form.itemId}`
+        )
+        if (res?.success && res.data) {
+          setStockInfo(res.data)
+        } else {
+          setStockInfo(null)
+        }
+      } catch {
+        setStockInfo(null)
+      } finally {
+        setStockLoading(false)
+      }
+    }
+    checkStock()
+  }, [form.itemId, form.sourceBranchId])
+
+  const availableQty = stockInfo
+    ? stockInfo.quantityOnHand - (stockInfo.reservedQuantity ?? 0)
+    : null
+
+  const qtyExceeds = availableQty !== null
+    && form.quantity !== ""
+    && Number(form.quantity) > availableQty
+
+  const sameBranch = Boolean(
+    form.sourceBranchId && form.sourceBranchId === form.destinationBranchId
+  )
+
+  const canSubmit = !submitting
+    && !qtyExceeds
+    && !sameBranch
+    && !!form.sourceBranchId
+    && availableQty !== 0
+    && !!form.itemId
+    && !!form.quantity
+    && Number(form.quantity) > 0
+    && form.justification.trim().length > 0
 
   async function handleSubmit(e) {
     e.preventDefault()
-    toast.success("Transfer request submitted")
-    router.push("/staff/transfers")
+    if (!form.destinationBranchId || Number(form.destinationBranchId) === 0) {
+      toast.error("Your branch could not be detected. Please refresh.")
+      return
+    }
+    if (!form.sourceBranchId) { toast.error("Please select a source branch"); return }
+    if (qtyExceeds)           { toast.error("Quantity exceeds available stock at source branch"); return }
+    if (sameBranch)           { toast.error("Source and destination cannot be the same branch"); return }
+    if (!form.justification.trim()) { toast.error("Justification is required"); return }
+
+    try {
+      setSubmitting(true)
+      const res = await api.post("/transfers", {
+        sourceBranchId:      Number(form.sourceBranchId),
+        destinationBranchId: Number(form.destinationBranchId),
+        itemId:              Number(form.itemId),
+        quantity:            Number(form.quantity),
+        justification:       form.justification.trim(),
+      })
+      if (res?.success) {
+        toast.success("Transfer request submitted")
+        router.push("/staff/transfers")
+      } else {
+        toast.error(res?.message || "Submission failed")
+      }
+    } catch (err) {
+      toast.error(err.message || "Submission failed")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const field = (label, key, type = "text", extra = {}) => (
-    <div key={key}>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-      <input
-        type={type} {...extra} required
-        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        value={form[key]}
-        onChange={e => setForm({ ...form, [key]: e.target.value })}
-      />
+  const labelStyle = {
+    fontFamily: "'DM Mono', monospace", fontSize: 9,
+    textTransform: "uppercase", letterSpacing: "0.12em",
+    color: "#9ca3af", marginBottom: 6, display: "block",
+  }
+  const inputStyle = {
+    width: "100%", border: "1px solid #dde0d4", background: "#f7f8f4",
+    padding: "10px 14px", fontSize: 13, fontFamily: "'Inter', sans-serif",
+    color: "#1a1f0e", outline: "none", boxSizing: "border-box",
+  }
+
+  if (loadingDeps) return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "80px 0" }}>
+      <div style={{
+        width: 24, height: 24,
+        border: "2px solid #dde0d4", borderTopColor: "#3d7a2b",
+        borderRadius: "50%", animation: "sb-spin 0.7s linear infinite",
+      }} />
+      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#6b7260", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+        Loading form data...
+      </span>
+      <style>{`@keyframes sb-spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )
 
   return (
-    <div className="max-w-xl">
-      <h1 className="text-xl font-bold text-gray-900 mb-6">New Transfer Request</h1>
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {field("Source Branch", "sourceBranchId")}
-          {field("Destination Branch", "destinationBranchId")}
-          {field("Item", "itemId")}
-          {field("Quantity", "quantity", "number", { min: 1 })}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Justification</label>
-            <textarea required rows={3}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={form.justification}
-              onChange={e => setForm({ ...form, justification: e.target.value })}
-            />
+    <div style={{ display: "flex", flexDirection: "column", gap: 24, maxWidth: 560 }}>
+
+      <PageHeader
+        title="New Transfer Request"
+        subtitle="Request stock from another branch to be sent to your location."
+      />
+
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          background: "#fff", border: "1px solid #dde0d4",
+          padding: 28, display: "flex", flexDirection: "column", gap: 20,
+        }}
+      >
+
+        {/* ── Source branch ── */}
+        <div>
+          <span style={labelStyle}>
+            Request Stock From <span style={{ color: "#dc2626" }}>*</span>
+          </span>
+          <select
+            required
+            value={form.sourceBranchId}
+            onChange={e => {
+              const val = e.target.value
+              setForm(f => ({ ...f, sourceBranchId: val, itemId: "", quantity: "" }))
+              setStockInfo(null)
+            }}
+            style={inputStyle}
+          >
+            <option value="">Select source branch...</option>
+            {branches
+              .filter(b => String(b.id) !== form.destinationBranchId)
+              .map(b => (
+                <option key={b.id} value={b.id}>
+                  {b.name}{b.code ? ` — ${b.code}` : ""}
+                </option>
+              ))}
+          </select>
+        </div>
+
+        {/* ── Item ── */}
+        <div>
+          <span style={labelStyle}>
+            Item <span style={{ color: "#dc2626" }}>*</span>
+          </span>
+          <select
+            required
+            value={form.itemId}
+            onChange={e => setForm(f => ({ ...f, itemId: e.target.value }))}
+            style={inputStyle}
+            disabled={!form.sourceBranchId}
+          >
+            <option value="">
+              {form.sourceBranchId ? "Select item..." : "Select a source branch first..."}
+            </option>
+            {items.map(item => (
+              <option key={item.id} value={item.id}>
+                {item.name}{item.code ? ` (${item.code})` : ""}
+              </option>
+            ))}
+          </select>
+
+          {form.itemId && form.sourceBranchId && (
+            <div style={{
+              marginTop: 8, padding: "8px 12px", fontSize: 12,
+              fontFamily: "'DM Mono', monospace",
+              ...(stockLoading
+                ? { background: "#f7f8f4", border: "1px solid #dde0d4", color: "#9ca3af" }
+                : stockInfo === null
+                ? { background: "#fef9c3", border: "1px solid #fde68a", color: "#92400e" }
+                : availableQty === 0
+                ? { background: "#fef2f2", border: "1px solid #fee2e2", color: "#dc2626" }
+                : { background: "#f0f7ed", border: "1px solid #e1eedb", color: "#3d7a2b" }),
+            }}>
+              {stockLoading
+                ? "Checking source branch availability..."
+                : stockInfo === null
+                ? "⚠ No stock record for this item at the selected source branch."
+                : availableQty === 0
+                ? "⚠ Source branch has no available stock for this item."
+                : `✓ Available at source: ${availableQty} ${
+                    items.find(i => String(i.id) === form.itemId)?.unitOfMeasure ?? "units"
+                  }`
+              }
+            </div>
+          )}
+        </div>
+
+        {/* ── Quantity ── */}
+        <div>
+          <span style={labelStyle}>
+            Quantity <span style={{ color: "#dc2626" }}>*</span>
+          </span>
+          <input
+            type="number"
+            required
+            min={1}
+            max={availableQty ?? undefined}
+            value={form.quantity}
+            placeholder="Enter quantity..."
+            onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))}
+            disabled={!form.itemId || !form.sourceBranchId}
+            style={{
+              ...inputStyle,
+              ...(qtyExceeds
+                ? { border: "1px solid #dc2626", background: "#fef2f2", color: "#dc2626" }
+                : {}),
+            }}
+          />
+          {qtyExceeds && (
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#dc2626", marginTop: 4 }}>
+              Exceeds available stock at source branch ({availableQty} available).
+            </p>
+          )}
+        </div>
+
+        {/* ── Justification ── */}
+        <div>
+          <span style={labelStyle}>
+            Justification <span style={{ color: "#dc2626" }}>*</span>
+          </span>
+          <textarea
+            required
+            rows={4}
+            maxLength={500}
+            value={form.justification}
+            placeholder="Explain why your branch needs this stock..."
+            onChange={e => setForm(f => ({ ...f, justification: e.target.value }))}
+            style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+          />
+          <div style={{
+            textAlign: "right",
+            fontFamily: "'DM Mono', monospace", fontSize: 10,
+            color: form.justification.length > 450 ? "#ca8a04" : "#9ca3af",
+            marginTop: 4,
+          }}>
+            {form.justification.length} / 500
           </div>
-          <div className="flex gap-3 pt-2">
-            <button type="submit"
-              className="bg-blue-600 text-white text-sm px-5 py-2 rounded-lg hover:bg-blue-700 transition">
-              Submit Request
-            </button>
-            <button type="button" onClick={() => router.back()}
-              className="text-sm px-5 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition">
-              Cancel
-            </button>
-          </div>
-        </form>
-      </div>
+        </div>
+
+        {/* ── Actions ── */}
+        <div style={{ display: "flex", gap: 12, paddingTop: 4 }}>
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            style={{
+              background: canSubmit ? "#3d7a2b" : "#9ca3af",
+              color: "#fff", border: "none",
+              cursor: canSubmit ? "pointer" : "not-allowed",
+              padding: "10px 24px", fontSize: 13,
+              fontFamily: "'Inter', sans-serif", fontWeight: 500,
+            }}
+          >
+            {submitting ? "Submitting..." : "Submit Request"}
+          </button>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            style={{
+              background: "#fff", border: "1px solid #dde0d4",
+              cursor: "pointer", padding: "10px 20px", fontSize: 13,
+              fontFamily: "'Inter', sans-serif", color: "#6b7260",
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+
+      </form>
     </div>
   )
 }

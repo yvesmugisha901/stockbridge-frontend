@@ -1,4 +1,5 @@
 import { AuthProvider } from "@/lib/context/AuthContext"
+import SessionProvider from "@/components/SessionProvider"
 import { Toaster } from "react-hot-toast"
 import "./globals.css"
 
@@ -12,7 +13,9 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body>
         <AuthProvider>
-          {children}
+          <SessionProvider>
+            {children}
+          </SessionProvider>
           <Toaster
             position="top-right"
             toastOptions={{

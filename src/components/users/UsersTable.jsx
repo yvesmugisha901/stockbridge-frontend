@@ -1,7 +1,3 @@
-/**
- * UsersTable — lists all system users with role, branch, status, actions
- * Props: users [], onEdit(user), onDeactivate(user)
- */
 "use client"
 import SBTable, { SBRow, SBCell } from "@/components/ui/SBTable"
 import Badge from "@/components/ui/Badge"
@@ -39,10 +35,10 @@ export default function UsersTable({ users = [], onEdit, onDeactivate }) {
                   fontFamily: "'DM Mono', monospace",
                   fontSize: 11, fontWeight: 600, flexShrink: 0,
                 }}>
-                  {u.name?.charAt(0)?.toUpperCase() ?? "?"}
+                  {u.fullName?.charAt(0)?.toUpperCase() ?? "?"}
                 </span>
                 <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#1a1f0e" }}>
-                  {u.name}
+                  {u.fullName ?? "—"}
                 </span>
               </div>
             </SBCell>
@@ -68,7 +64,11 @@ export default function UsersTable({ users = [], onEdit, onDeactivate }) {
                 </button>
                 <button
                   onClick={() => onDeactivate?.(u)}
-                  style={actionBtn(u.active ? "#fef2f2" : "#f0f7ed", u.active ? "#dc2626" : "#3d7a2b", u.active ? "#fecaca" : "#bbf7d0")}
+                  style={actionBtn(
+                    u.active ? "#fef2f2" : "#f0f7ed",
+                    u.active ? "#dc2626" : "#3d7a2b",
+                    u.active ? "#fecaca" : "#bbf7d0"
+                  )}
                 >
                   {u.active ? "Deactivate" : "Activate"}
                 </button>

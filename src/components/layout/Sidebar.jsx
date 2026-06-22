@@ -43,49 +43,53 @@ function LogIcon() {
 function ConfigIcon() {
   return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
 }
+function SettingsIcon() {
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+}
+function BellIcon() {
+  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+}
+function CloseIcon() {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+}
 
 const NAV = {
   [ROLES.STAFF]: [
-    { label: "Dashboard",         href: "/staff",                icon: DashboardIcon   },
-    { label: "My Stock",          href: "/staff/stock",          icon: BoxIcon         },
-    { label: "Transfer Requests", href: "/staff/transfers",      icon: TruckIcon       },
-    { label: "New Transfer",      href: "/staff/transfers/new",  icon: PlusIcon        },
+    { label: "Dashboard",         href: "/staff",               icon: DashboardIcon },
+    { label: "My Stock",          href: "/staff/stock",         icon: BoxIcon       },
+    { label: "Transfer Requests", href: "/staff/transfers",     icon: TruckIcon     },
+    { label: "New Transfer",      href: "/staff/transfers/new", icon: PlusIcon      },
   ],
   [ROLES.MANAGER]: [
-    { label: "Dashboard",         href: "/manager",              icon: DashboardIcon   },
-    { label: "Branch Stock",      href: "/manager/stock",        icon: BoxIcon         },
-    { label: "Pending Approvals", href: "/manager/approvals",    icon: CheckCircleIcon },
-    { label: "Reports",           href: "/manager/reports",      icon: ReportIcon      },
+    { label: "Dashboard",         href: "/manager",             icon: DashboardIcon   },
+    { label: "Branch Stock",      href: "/manager/stock",       icon: BoxIcon         },
+    { label: "Pending Approvals", href: "/manager/approvals",   icon: CheckCircleIcon },
+    { label: "Reports",           href: "/manager/reports",     icon: ReportIcon      },
   ],
   [ROLES.HO_ADMIN]: [
-    { label: "Dashboard",          href: "/ho-admin",            icon: DashboardIcon   },
-    { label: "All Stock",          href: "/ho-admin/stock",      icon: BoxIcon         },
-    { label: "Final Approvals",    href: "/ho-admin/approvals",  icon: CheckCircleIcon },
-    { label: "Inventory Catalogue",href: "/ho-admin/inventory",  icon: CatalogueIcon   },
-    { label: "Reports",            href: "/ho-admin/reports",    icon: ReportIcon      },
+    { label: "Dashboard",           href: "/ho-admin",           icon: DashboardIcon   },
+    { label: "All Stock",           href: "/ho-admin/stock",     icon: BoxIcon         },
+    { label: "Final Approvals",     href: "/ho-admin/approvals", icon: CheckCircleIcon },
+    { label: "Inventory Catalogue", href: "/ho-admin/inventory", icon: CatalogueIcon   },
+    { label: "Reports",             href: "/ho-admin/reports",   icon: ReportIcon      },
   ],
   [ROLES.ACCOUNTANT]: [
-    { label: "Dashboard",          href: "/accountant",           icon: DashboardIcon  },
-    { label: "Approved Transfers", href: "/accountant/transfers", icon: TruckIcon      },
-    { label: "Finance Summary",    href: "/accountant/finance",   icon: DollarIcon     },
+    { label: "Dashboard",          href: "/accountant",           icon: DashboardIcon },
+    { label: "Approved Transfers", href: "/accountant/transfers", icon: TruckIcon     },
+    { label: "Finance Summary",    href: "/accountant/finance",   icon: DollarIcon    },
+    { label: "Reports",            href: "/accountant/reports",   icon: ReportIcon    },
   ],
   [ROLES.ADMIN]: [
-    // Overview
-    { label: "Dashboard",          href: "/admin",                icon: DashboardIcon, group: "Overview"        },
-    // People & Places
-    { label: "Users",              href: "/admin/users",          icon: UsersIcon,     group: "People & Places" },
-    { label: "Branches",           href: "/admin/branches",       icon: BranchIcon,    group: "People & Places" },
-    // Inventory
-    { label: "Item Catalogue",     href: "/admin/inventory",      icon: CatalogueIcon, group: "Inventory"       },
-    { label: "All Stock",          href: "/admin/stock",          icon: BoxIcon,       group: "Inventory"       },
-    // Transfers
-    { label: "All Transfers",      href: "/admin/transfers",      icon: TruckIcon,     group: "Transfers"       },
-    // Reports & Logs
-    { label: "Reports",            href: "/admin/reports",        icon: ReportIcon,    group: "Reports & Logs"  },
-    { label: "Audit Log",          href: "/admin/logs",           icon: LogIcon,       group: "Reports & Logs"  },
-    // System
-    { label: "System Config",      href: "/admin/config",         icon: ConfigIcon,    group: "System"          },
-    { label: "Roles & Permissions",href: "/admin/roles",          icon: ShieldIcon,    group: "System"          },
+    { label: "Dashboard",           href: "/admin",           icon: DashboardIcon, group: "Overview"        },
+    { label: "Users",               href: "/admin/users",     icon: UsersIcon,     group: "People & Places" },
+    { label: "Branches",            href: "/admin/branches",  icon: BranchIcon,    group: "People & Places" },
+    { label: "Item Catalogue",      href: "/admin/inventory", icon: CatalogueIcon, group: "Inventory"       },
+    { label: "All Stock",           href: "/admin/stock",     icon: BoxIcon,       group: "Inventory"       },
+    { label: "All Transfers",       href: "/admin/transfers", icon: TruckIcon,     group: "Transfers"       },
+    { label: "Reports",             href: "/admin/reports",   icon: ReportIcon,    group: "Reports & Logs"  },
+    { label: "Audit Log",           href: "/admin/logs",      icon: LogIcon,       group: "Reports & Logs"  },
+    { label: "System Config",       href: "/admin/config",    icon: ConfigIcon,    group: "System"          },
+    { label: "Roles & Permissions", href: "/admin/roles",     icon: ShieldIcon,    group: "System"          },
   ],
 }
 
@@ -97,41 +101,48 @@ const ROLE_LABEL = {
   [ROLES.ACCOUNTANT]: "Accountant",
 }
 
-export default function Sidebar() {
-  const { user } = useAuthContext()
+export default function Sidebar({ isOpen = false, onClose, unreadCount = 0 }) {
+  const { user }  = useAuthContext()
   const pathname  = usePathname()
   const links     = NAV[user?.role] || []
   const roleLabel = ROLE_LABEL[user?.role] || user?.role
   const isAdmin   = user?.role === ROLES.ADMIN
 
-  // For admin: render grouped nav; for others: flat list
+  // Resolve the display name — tries every field the JWT might use
+  const displayName = user?.fullName || user?.full_name || user?.name || user?.username || user?.sub || "—"
+  const initial     = displayName.charAt(0).toUpperCase()
+
+  const navLinkStyle = (href) => {
+    const active =
+      pathname === href ||
+      (href.length > 1 &&
+        pathname.startsWith(href) &&
+        href !== `/${user?.role?.toLowerCase().replace("_", "-")}`)
+    return {
+      active,
+      style: {
+        display: "flex", alignItems: "center", gap: 10,
+        padding: "8px 10px", marginBottom: 1,
+        textDecoration: "none", borderRadius: 6,
+        fontFamily: "'Inter', system-ui, sans-serif",
+        fontSize: 13, fontWeight: active ? 500 : 400,
+        color: active ? "#3d7a2b" : "#4b5563",
+        background: active ? "#f0f7ed" : "transparent",
+        borderLeft: `2px solid ${active ? "#3d7a2b" : "transparent"}`,
+        transition: "color 0.13s, background 0.13s",
+      }
+    }
+  }
+
   const renderLinks = (items) =>
     items.map(({ label, href, icon: NavIcon }) => {
-      const active =
-        pathname === href ||
-        (href.length > 1 &&
-          pathname.startsWith(href) &&
-          href !== `/${user?.role?.toLowerCase()}`)
+      const { active, style } = navLinkStyle(href)
       return (
         <Link
           key={href}
           href={href}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "8px 10px",
-            marginBottom: 1,
-            textDecoration: "none",
-            borderRadius: 6,
-            fontFamily: "'Inter', system-ui, sans-serif",
-            fontSize: 13,
-            fontWeight: active ? 500 : 400,
-            color: active ? "#3d7a2b" : "#4b5563",
-            background: active ? "#f0f7ed" : "transparent",
-            borderLeft: `2px solid ${active ? "#3d7a2b" : "transparent"}`,
-            transition: "color 0.13s, background 0.13s",
-          }}
+          style={style}
+          onClick={onClose}
           onMouseEnter={(e) => {
             if (!active) {
               e.currentTarget.style.color = "#1a1f0e"
@@ -162,13 +173,9 @@ export default function Sidebar() {
     return groups.map((group) => (
       <div key={group} style={{ marginBottom: 4 }}>
         <p style={{
-          fontFamily: "'DM Mono', monospace",
-          fontSize: 9,
-          textTransform: "uppercase",
-          letterSpacing: "0.16em",
-          color: "#b8bead",
-          margin: "10px 0 4px",
-          padding: "0 10px",
+          fontFamily: "'DM Mono', monospace", fontSize: 9,
+          textTransform: "uppercase", letterSpacing: "0.16em",
+          color: "#b8bead", margin: "10px 0 4px", padding: "0 10px",
         }}>
           {group}
         </p>
@@ -177,50 +184,70 @@ export default function Sidebar() {
     ))
   }
 
+  const settingsActive     = pathname === "/settings"
+  const notificationsActive = pathname === "/notifications"
+
+  // Shared bottom-section link style (used by Notifications + Settings)
+  const bottomLinkStyle = (active) => ({
+    display: "flex", alignItems: "center", gap: 10,
+    padding: "8px 10px", textDecoration: "none", borderRadius: 6,
+    fontFamily: "'Inter', system-ui, sans-serif", fontSize: 13,
+    fontWeight: active ? 500 : 400,
+    color: active ? "#3d7a2b" : "#4b5563",
+    background: active ? "#f0f7ed" : "transparent",
+    borderLeft: `2px solid ${active ? "#3d7a2b" : "transparent"}`,
+    transition: "color 0.13s, background 0.13s",
+  })
+
+  const bottomLinkHover = (active, enter) => (e) => {
+    if (active) return
+    e.currentTarget.style.color      = enter ? "#1a1f0e"   : "#4b5563"
+    e.currentTarget.style.background = enter ? "#f7f8f4"   : "transparent"
+  }
+
   return (
-    <aside style={{
-      width: 228,
-      minWidth: 228,
-      height: "100vh",
-      background: "#ffffff",
-      borderRight: "1px solid #e8ebe3",
-      display: "flex",
-      flexDirection: "column",
+    <aside className={`sidebar ${isOpen ? "sidebar-open" : ""}`} style={{
+      width: 228, minWidth: 228, height: "100vh",
+      background: "#ffffff", borderRight: "1px solid #e8ebe3",
+      display: "flex", flexDirection: "column",
     }}>
 
-      {/* Logo */}
+      {/* Logo bar */}
       <div style={{
-        height: 60,
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        padding: "0 20px",
-        borderBottom: "1px solid #e8ebe3",
+        height: 60, display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "0 20px", borderBottom: "1px solid #e8ebe3",
         flexShrink: 0,
       }}>
-        <span style={{
-          width: 30, height: 30,
-          background: "#3d7a2b",
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#fff",
-          fontSize: 10,
-          fontWeight: 600,
-          flexShrink: 0,
-          clipPath: "polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)",
-          fontFamily: "'DM Mono', monospace",
-        }}>
-          SB
-        </span>
-        <span style={{
-          fontFamily: "'DM Serif Display', Georgia, serif",
-          fontSize: 17,
-          color: "#1a1f0e",
-          letterSpacing: "-0.3px",
-        }}>
-          StockBridge
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{
+            width: 30, height: 30, background: "#3d7a2b",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            color: "#fff", fontSize: 10, fontWeight: 600, flexShrink: 0,
+            clipPath: "polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)",
+            fontFamily: "'DM Mono', monospace",
+          }}>
+            SB
+          </span>
+          <span style={{
+            fontFamily: "'DM Serif Display', Georgia, serif",
+            fontSize: 17, color: "#1a1f0e", letterSpacing: "-0.3px",
+          }}>
+            StockBridge
+          </span>
+        </div>
+
+        {/* Close button — hidden on desktop, visible on mobile only via CSS */}
+        <button
+          onClick={onClose}
+          className="sidebar-close"
+          aria-label="Close menu"
+          style={{
+            background: "none", border: "none", cursor: "pointer",
+            color: "#6b7260", padding: 4, display: "none", // ← hidden by default on desktop
+          }}
+        >
+          <CloseIcon />
+        </button>
       </div>
 
       {/* Nav */}
@@ -228,53 +255,100 @@ export default function Sidebar() {
         {isAdmin ? renderAdminNav() : (
           <>
             <p style={{
-              fontFamily: "'DM Mono', monospace",
-              fontSize: 9,
-              textTransform: "uppercase",
-              letterSpacing: "0.16em",
-              color: "#b8bead",
-              margin: "0 0 6px",
-              padding: "0 10px",
+              fontFamily: "'DM Mono', monospace", fontSize: 9,
+              textTransform: "uppercase", letterSpacing: "0.16em",
+              color: "#b8bead", margin: "0 0 6px", padding: "0 10px",
             }}>
               Menu
             </p>
             {renderLinks(links)}
           </>
         )}
+
+        {/* Notifications + Settings */}
+        <div style={{ marginTop: 8, borderTop: "1px solid #e8ebe3", paddingTop: 8 }}>
+          <Link
+            href="/notifications"
+            onClick={onClose}
+            style={bottomLinkStyle(notificationsActive)}
+            onMouseEnter={bottomLinkHover(notificationsActive, true)}
+            onMouseLeave={bottomLinkHover(notificationsActive, false)}
+          >
+            <span style={{ flexShrink: 0, color: notificationsActive ? "#3d7a2b" : "#9ca3af", position: "relative" }}>
+              <BellIcon />
+              {unreadCount > 0 && (
+                <span style={{
+                  position: "absolute", top: -3, right: -3,
+                  width: 7, height: 7, background: "#e24b4a",
+                  borderRadius: "50%", border: "1.5px solid #fff",
+                }} />
+              )}
+            </span>
+            Notifications
+            {unreadCount > 0 && (
+              <span style={{
+                marginLeft: "auto",
+                fontSize: 9, fontWeight: 600,
+                background: notificationsActive ? "#3d7a2b" : "#e4f0df",
+                color: notificationsActive ? "#fff" : "#3d7a2b",
+                padding: "1px 6px", borderRadius: 8,
+                fontFamily: "'DM Mono', monospace",
+              }}>
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+          </Link>
+
+          <Link
+            href="/settings"
+            onClick={onClose}
+            style={bottomLinkStyle(settingsActive)}
+            onMouseEnter={bottomLinkHover(settingsActive, true)}
+            onMouseLeave={bottomLinkHover(settingsActive, false)}
+          >
+            <span style={{ flexShrink: 0, color: settingsActive ? "#3d7a2b" : "#9ca3af" }}>
+              <SettingsIcon />
+            </span>
+            Settings
+          </Link>
+        </div>
       </nav>
 
-      {/* User strip */}
+      {/* User strip — avatar + full name + role badge */}
       <div style={{
-        padding: "12px 16px",
-        borderTop: "1px solid #e8ebe3",
-        background: "#f9faf7",
-        flexShrink: 0,
+        flexShrink: 0, padding: "12px 16px",
+        borderTop: "1px solid #e8ebe3", background: "#f9faf7",
+        display: "flex", alignItems: "center", gap: 10,
       }}>
-        <p style={{
-          fontFamily: "'Inter', system-ui, sans-serif",
-          fontSize: 13,
-          fontWeight: 500,
-          color: "#1a1f0e",
-          margin: "0 0 4px",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}>
-          {user?.name || user?.sub}
-        </p>
+        {/* Avatar circle */}
         <span style={{
-          fontFamily: "'DM Mono', monospace",
-          fontSize: 9,
-          textTransform: "uppercase",
-          letterSpacing: "0.14em",
-          color: "#3d7a2b",
-          background: "#e4f0df",
-          padding: "3px 8px",
-          borderRadius: 3,
-          display: "inline-block",
+          width: 32, height: 32, borderRadius: "50%",
+          background: "#e4f0df", color: "#3d7a2b",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600,
+          flexShrink: 0,
         }}>
-          {roleLabel}
+          {initial}
         </span>
+
+        {/* Name + role */}
+        <div style={{ minWidth: 0 }}>
+          <p style={{
+            fontFamily: "'Inter', system-ui, sans-serif", fontSize: 13,
+            fontWeight: 500, color: "#1a1f0e", margin: "0 0 3px",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {displayName}
+          </p>
+          <span style={{
+            fontFamily: "'DM Mono', monospace", fontSize: 9,
+            textTransform: "uppercase", letterSpacing: "0.14em",
+            color: "#3d7a2b", background: "#e4f0df",
+            padding: "2px 7px", borderRadius: 3, display: "inline-block",
+          }}>
+            {roleLabel}
+          </span>
+        </div>
       </div>
 
     </aside>
